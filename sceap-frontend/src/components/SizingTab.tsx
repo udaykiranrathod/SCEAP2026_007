@@ -1,23 +1,68 @@
 import { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import * as XLSX from 'xlsx';
-import { Upload, FileText, Calculator, Edit, Trash2, Loader2, Download } from 'lucide-react';
+import { Upload, FileText, Calculator, Edit, Trash2, Loader2, Download, AlertCircle, CheckCircle } from 'lucide-react';
+import { normalizeFeeders, analyzeAllPaths } from '../utils/pathDiscoveryService';
+import { usePathContext } from '../context/PathContext';
 
-// Template generation function
+// Template generation function with hierarchical structure
 const generateFeederTemplate = () => {
-  // Define the template structure with sample data
+  // Define the template structure HIERARCHICALLY like an SLD
+  // Key: Use panel headers and group feeders under them
+  
   const templateData = [
+    // === MAIN TRANSFORMER (TOP LEVEL) ===
     {
       'Serial No': 1,
       'Cable Number': 'CBL-001',
-      'Feeder Description': 'TRF to PMCC-1',
+      'Feeder Description': '**TRANSFORMER MAIN - 415V/50kVA**', // Bold = Panel Header
       'From Bus': 'TRF-415V',
+      'To Bus': 'MAIN-BUS',
+      'Voltage (V)': 415,
+      'Power Factor': 0.95,
+      'Efficiency (%)': 98,
+      'Derating Factor': 1.0,
+      'Breaker Type': 'ISOLATOR',
+      'Load KW': 0,
+      'Load KVA': 0,
+      'Cable Type': 'XLPE',
+      'Installation Method': 'Cable Tray',
+      'Ambient Temp (°C)': 35,
+      'Ground Temp (°C)': 25,
+      'Length (m)': 5.0
+    },
+    
+    // === MAIN SWITCHGEAR PANEL (LEVEL 1) ===
+    {
+      'Serial No': 2,
+      'Cable Number': 'CBL-002',
+      'Feeder Description': '**MAIN SWITCHGEAR PANEL**',
+      'From Bus': 'MAIN-BUS',
+      'To Bus': 'SWG-MAIN',
+      'Voltage (V)': 415,
+      'Power Factor': 0.95,
+      'Efficiency (%)': 98,
+      'Derating Factor': 1.0,
+      'Breaker Type': 'ACB',
+      'Load KW': 0,
+      'Load KVA': 0,
+      'Cable Type': 'XLPE',
+      'Installation Method': 'Cable Tray',
+      'Ambient Temp (°C)': 35,
+      'Ground Temp (°C)': 25,
+      'Length (m)': 2.0
+    },
+    {
+      'Serial No': 3,
+      'Cable Number': 'CBL-003',
+      'Feeder Description': 'Feeder to PMCC-1',
+      'From Bus': 'SWG-MAIN',
       'To Bus': 'PMCC-1',
       'Voltage (V)': 415,
       'Power Factor': 0.85,
       'Efficiency (%)': 95,
       'Derating Factor': 0.87,
-      'Breaker Type': 'ACB',
+      'Breaker Type': 'ACB-250A',
       'Load KW': 125.5,
       'Load KVA': 147.6,
       'Cable Type': 'XLPE',
@@ -27,16 +72,57 @@ const generateFeederTemplate = () => {
       'Length (m)': 25.5
     },
     {
-      'Serial No': 2,
-      'Cable Number': 'CBL-002',
-      'Feeder Description': 'PMCC-1 to MCC-1',
+      'Serial No': 4,
+      'Cable Number': 'CBL-004',
+      'Feeder Description': 'Feeder to PMCC-2',
+      'From Bus': 'SWG-MAIN',
+      'To Bus': 'PMCC-2',
+      'Voltage (V)': 415,
+      'Power Factor': 0.86,
+      'Efficiency (%)': 94,
+      'Derating Factor': 0.88,
+      'Breaker Type': 'ACB-200A',
+      'Load KW': 180.7,
+      'Load KVA': 210.2,
+      'Cable Type': 'XLPE',
+      'Installation Method': 'Cable Tray',
+      'Ambient Temp (°C)': 38,
+      'Ground Temp (°C)': 28,
+      'Length (m)': 42.3
+    },
+    
+    // === PMCC-1 PANEL (LEVEL 2) ===
+    {}, // Empty row = gap between sections
+    {
+      'Serial No': 5,
+      'Cable Number': 'CBL-005',
+      'Feeder Description': '**PMCC-1 PANEL (250kVA)**',
       'From Bus': 'PMCC-1',
+      'To Bus': 'PMCC-1-BUS',
+      'Voltage (V)': 415,
+      'Power Factor': 0.95,
+      'Efficiency (%)': 98,
+      'Derating Factor': 1.0,
+      'Breaker Type': 'MCCB',
+      'Load KW': 0,
+      'Load KVA': 0,
+      'Cable Type': 'XLPE',
+      'Installation Method': 'Cable Tray',
+      'Ambient Temp (°C)': 35,
+      'Ground Temp (°C)': 25,
+      'Length (m)': 1.0
+    },
+    {
+      'Serial No': 6,
+      'Cable Number': 'CBL-006',
+      'Feeder Description': 'Feeder to MCC-1',
+      'From Bus': 'PMCC-1-BUS',
       'To Bus': 'MCC-1',
       'Voltage (V)': 415,
       'Power Factor': 0.88,
       'Efficiency (%)': 92,
       'Derating Factor': 0.85,
-      'Breaker Type': 'MCCB',
+      'Breaker Type': 'MCCB-150A',
       'Load KW': 95.8,
       'Load KVA': 109.1,
       'Cable Type': 'PVC',
@@ -46,35 +132,16 @@ const generateFeederTemplate = () => {
       'Length (m)': 18.2
     },
     {
-      'Serial No': 3,
-      'Cable Number': 'CBL-003',
-      'Feeder Description': 'MCC-1 to MOTOR-1',
-      'From Bus': 'MCC-1',
-      'To Bus': 'MOTOR-1',
-      'Voltage (V)': 415,
-      'Power Factor': 0.82,
-      'Efficiency (%)': 89,
-      'Derating Factor': 0.90,
-      'Breaker Type': 'MCCB',
-      'Load KW': 145.2,
-      'Load KVA': 177.3,
-      'Cable Type': 'XLPE',
-      'Installation Method': 'Direct Burial',
-      'Ambient Temp (°C)': 30,
-      'Ground Temp (°C)': 20,
-      'Length (m)': 35.8
-    },
-    {
-      'Serial No': 4,
-      'Cable Number': 'CBL-004',
-      'Feeder Description': 'PMCC-1 to LIGHTING-1',
-      'From Bus': 'PMCC-1',
+      'Serial No': 7,
+      'Cable Number': 'CBL-007',
+      'Feeder Description': 'Feeder to Lighting',
+      'From Bus': 'PMCC-1-BUS',
       'To Bus': 'LIGHTING-1',
       'Voltage (V)': 415,
       'Power Factor': 0.95,
       'Efficiency (%)': 98,
       'Derating Factor': 0.92,
-      'Breaker Type': 'MCB',
+      'Breaker Type': 'MCB-63A',
       'Load KW': 25.3,
       'Load KVA': 26.6,
       'Cable Type': 'PVC',
@@ -83,36 +150,99 @@ const generateFeederTemplate = () => {
       'Ground Temp (°C)': 25,
       'Length (m)': 12.5
     },
+    
+    // === MCC-1 PANEL (LEVEL 3 - End loads) ===
+    {}, // Empty row = gap between sections
     {
-      'Serial No': 5,
-      'Cable Number': 'CBL-005',
-      'Feeder Description': 'TRF to PMCC-2',
-      'From Bus': 'TRF-415V',
-      'To Bus': 'PMCC-2',
+      'Serial No': 8,
+      'Cable Number': 'CBL-008',
+      'Feeder Description': '**MCC-1 PANEL (150kVA)**',
+      'From Bus': 'MCC-1',
+      'To Bus': 'MCC-1-BUS',
       'Voltage (V)': 415,
-      'Power Factor': 0.86,
-      'Efficiency (%)': 94,
-      'Derating Factor': 0.88,
-      'Breaker Type': 'ACB',
-      'Load KW': 180.7,
-      'Load KVA': 210.2,
+      'Power Factor': 0.95,
+      'Efficiency (%)': 98,
+      'Derating Factor': 1.0,
+      'Breaker Type': 'MCCB',
+      'Load KW': 0,
+      'Load KVA': 0,
       'Cable Type': 'XLPE',
       'Installation Method': 'Cable Tray',
-      'Ambient Temp (°C)': 38,
-      'Ground Temp (°C)': 28,
-      'Length (m)': 42.3
+      'Ambient Temp (°C)': 35,
+      'Ground Temp (°C)': 25,
+      'Length (m)': 1.0
+    },
+    {
+      'Serial No': 9,
+      'Cable Number': 'CBL-009',
+      'Feeder Description': 'Motor-1 (75kW)',
+      'From Bus': 'MCC-1-BUS',
+      'To Bus': 'MOTOR-1',
+      'Voltage (V)': 415,
+      'Power Factor': 0.82,
+      'Efficiency (%)': 89,
+      'Derating Factor': 0.90,
+      'Breaker Type': 'MCCB-160A',
+      'Load KW': 75.0,
+      'Load KVA': 91.5,
+      'Cable Type': 'XLPE',
+      'Installation Method': 'Direct Burial',
+      'Ambient Temp (°C)': 30,
+      'Ground Temp (°C)': 20,
+      'Length (m)': 35.8
+    },
+    {
+      'Serial No': 10,
+      'Cable Number': 'CBL-010',
+      'Feeder Description': 'Motor-2 (45kW)',
+      'From Bus': 'MCC-1-BUS',
+      'To Bus': 'MOTOR-2',
+      'Voltage (V)': 415,
+      'Power Factor': 0.80,
+      'Efficiency (%)': 88,
+      'Derating Factor': 0.88,
+      'Breaker Type': 'MCCB-100A',
+      'Load KW': 45.0,
+      'Load KVA': 56.3,
+      'Cable Type': 'XLPE',
+      'Installation Method': 'Conduit',
+      'Ambient Temp (°C)': 32,
+      'Ground Temp (°C)': 22,
+      'Length (m)': 28.5
+    },
+    {
+      'Serial No': 11,
+      'Cable Number': 'CBL-011',
+      'Feeder Description': 'Pump (30kW)',
+      'From Bus': 'MCC-1-BUS',
+      'To Bus': 'PUMP-1',
+      'Voltage (V)': 415,
+      'Power Factor': 0.85,
+      'Efficiency (%)': 91,
+      'Derating Factor': 0.89,
+      'Breaker Type': 'MCCB-63A',
+      'Load KW': 30.0,
+      'Load KVA': 35.3,
+      'Cable Type': 'PVC',
+      'Installation Method': 'Conduit',
+      'Ambient Temp (°C)': 35,
+      'Ground Temp (°C)': 25,
+      'Length (m)': 22.0
     }
   ];
 
+  // Filter out empty rows for Excel export
+  const cleanData = templateData.filter((row: any) => Object.keys(row).length > 0);
+
   // Create workbook and worksheet
   const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.json_to_sheet(templateData);
+  const ws = XLSX.utils.json_to_sheet(cleanData);
 
   // Set column widths for better readability
   const colWidths = [
     { wch: 10 }, // Serial No
     { wch: 12 }, // Cable Number
-    { wch: 25 }, // Feeder Description
+    { wch: 30 }, // Feeder Description
     { wch: 15 }, // From Bus
     { wch: 15 }, // To Bus
     { wch: 12 }, // Voltage (V)
@@ -130,42 +260,65 @@ const generateFeederTemplate = () => {
   ];
   ws['!cols'] = colWidths;
 
-  // Add worksheet to workbook
-  XLSX.utils.book_append_sheet(wb, ws, 'Feeder_List_Template');
+  XLSX.utils.book_append_sheet(wb, ws, 'Hierarchical_Feeders');
 
-  // Create a second sheet with instructions
+  // Create instructions sheet
   const instructionsData = [
-    { 'Column': 'Serial No', 'Description': 'Sequential number for each feeder', 'Required': 'Yes', 'Example': '1, 2, 3...' },
-    { 'Column': 'Cable Number', 'Description': 'Unique identifier for each cable', 'Required': 'Yes', 'Example': 'CBL-001, CBL-002' },
-    { 'Column': 'Feeder Description', 'Description': 'Description of the feeder connection', 'Required': 'Yes', 'Example': 'TRF to PMCC-1' },
-    { 'Column': 'From Bus', 'Description': 'Source bus/switchgear name', 'Required': 'Yes', 'Example': 'TRF-415V, PMCC-1' },
-    { 'Column': 'To Bus', 'Description': 'Destination bus/load name', 'Required': 'Yes', 'Example': 'MCC-1, MOTOR-1' },
-    { 'Column': 'Voltage (V)', 'Description': 'System voltage in volts', 'Required': 'Yes', 'Example': '415, 690, 11000' },
-    { 'Column': 'Power Factor', 'Description': 'Power factor of the load (0.8 to 1.0)', 'Required': 'Yes', 'Example': '0.85, 0.9, 0.95' },
-    { 'Column': 'Efficiency (%)', 'Description': 'Efficiency of the equipment in percentage', 'Required': 'Yes', 'Example': '85, 90, 95' },
-    { 'Column': 'Derating Factor', 'Description': 'Cable derating factor (0.8 to 1.0)', 'Required': 'Yes', 'Example': '0.87, 0.85, 0.9' },
-    { 'Column': 'Breaker Type', 'Description': 'Type of protective device', 'Required': 'Yes', 'Example': 'ACB, MCCB, MCB, VCB' },
-    { 'Column': 'Load KW', 'Description': 'Active power load in kilowatts', 'Required': 'Yes', 'Example': '125.5, 95.8, 145.2' },
-    { 'Column': 'Load KVA', 'Description': 'Apparent power load in KVA', 'Required': 'Yes', 'Example': '147.6, 109.1, 177.3' },
-    { 'Column': 'Cable Type', 'Description': 'Type of cable insulation', 'Required': 'No', 'Example': 'XLPE, PVC, EPR' },
-    { 'Column': 'Installation Method', 'Description': 'How the cable is installed', 'Required': 'No', 'Example': 'Cable Tray, Conduit, Direct Burial' },
-    { 'Column': 'Ambient Temp (°C)', 'Description': 'Ambient temperature in Celsius', 'Required': 'No', 'Example': '35, 40, 30' },
-    { 'Column': 'Ground Temp (°C)', 'Description': 'Ground temperature in Celsius', 'Required': 'No', 'Example': '25, 30, 20' },
-    { 'Column': 'Length (m)', 'Description': 'Cable length in meters', 'Required': 'Yes', 'Example': '25.5, 18.2, 35.8' }
+    { 
+      'STRUCTURE': 'How to Format Your Feeder List for SLD Path Discovery',
+      'EXAMPLE': '',
+      'NOTES': ''
+    },
+    { 'STRUCTURE': '', 'EXAMPLE': '', 'NOTES': '' },
+    { 
+      'STRUCTURE': '1. Panel Headers',
+      'EXAMPLE': '**PANEL NAME**  (or include PMCC, MCC, Transformer)',
+      'NOTES': 'Start a new section with bold text or bus name as heading'
+    },
+    { 
+      'STRUCTURE': '2. Feeders Under Panel',
+      'EXAMPLE': 'List all loads/feeders connected to that bus',
+      'NOTES': 'From Bus = Bus this feeder originates from (child), To Bus = Parent bus'
+    },
+    { 
+      'STRUCTURE': '3. Empty Row',
+      'EXAMPLE': '[Skip 1-2 rows between sections]',
+      'NOTES': 'Use empty rows to separate different panels/hierarchies'
+    },
+    { 'STRUCTURE': '', 'EXAMPLE': '', 'NOTES': '' },
+    { 
+      'STRUCTURE': 'HIERARCHY EXAMPLE:',
+      'EXAMPLE': 'Transformer → Main Switchgear → PMCC-1 → MCC-1 → Motors/Loads',
+      'NOTES': 'From Bus and To Bus create the chain'
+    },
+    { 
+      'STRUCTURE': 'IMPORTANT:',
+      'EXAMPLE': 'From Bus = Load side (lower level), To Bus = Source side (higher level)',
+      'NOTES': 'This allows the system to trace paths from any load back to transformer'
+    },
+    { 
+      'STRUCTURE': 'BUS NAMING:',
+      'EXAMPLE': 'TRF-415V, MAIN-BUS, PMCC-1, MCC-1, MOTOR-1, LIGHTING-1, etc.',
+      'NOTES': 'Use consistent, meaningful names. Include "TRF" or "TRANSFORMER" for main source'
+    },
+    { 
+      'STRUCTURE': 'RESULT:',
+      'EXAMPLE': 'System automatically discovers all paths and creates cable sizing chains',
+      'NOTES': 'Path: MOTOR-1 ← MCC-1 ← PMCC-1 ← MAIN-BUS ← TRANSFORMER'
+    }
   ];
 
   const wsInstructions = XLSX.utils.json_to_sheet(instructionsData);
   const instructionWidths = [
-    { wch: 20 }, // Column
-    { wch: 40 }, // Description
-    { wch: 10 }, // Required
-    { wch: 25 }  // Example
+    { wch: 25 },
+    { wch: 60 },
+    { wch: 50 }
   ];
   wsInstructions['!cols'] = instructionWidths;
-  XLSX.utils.book_append_sheet(wb, wsInstructions, 'Instructions');
+  XLSX.utils.book_append_sheet(wb, wsInstructions, 'How_To_Structure');
 
   // Download the file
-  XLSX.writeFile(wb, 'SCEAP_Feeder_List_Template.xlsx');
+  XLSX.writeFile(wb, 'SCEAP_Feeder_List_Template_Hierarchical.xlsx');
 };
 
 interface FeederData {
@@ -260,6 +413,7 @@ const LoadingOverlay = ({ message, progress }: { message: string; progress?: num
 };
 
 const SizingTab = () => {
+  const { setPathAnalysis: setContextPathAnalysis } = usePathContext();
   const [feederData, setFeederData] = useState<FeederData[]>([]);
   const [feederHeaders, setFeederHeaders] = useState<string[]>([]);
   const [catalogueData, setCatalogueData] = useState<CableCatalogue[]>([]);
@@ -268,6 +422,7 @@ const SizingTab = () => {
   const [isLoadingFeeder, setIsLoadingFeeder] = useState(false);
   const [isLoadingCatalogue, setIsLoadingCatalogue] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
+  const [pathAnalysis, setPathAnalysis] = useState<any>(null);
 
   // Default cable catalogue
   const defaultCatalogue: CableCatalogue[] = [
@@ -371,6 +526,20 @@ const SizingTab = () => {
           });
 
           setLoadingMessage('Data processing complete!');
+
+          // Analyze paths for cable sizing
+          setLoadingMessage('Discovering cable paths...');
+          try {
+            const normalizedFeeders = normalizeFeeders(feeders);
+            const analysis = analyzeAllPaths(normalizedFeeders);
+            setPathAnalysis(analysis);
+            setContextPathAnalysis(analysis); // Share with context for Optimization tab
+            setLoadingMessage('Path analysis complete!');
+          } catch (pathError) {
+            console.error('Path analysis error:', pathError);
+            setPathAnalysis(null);
+            setContextPathAnalysis(null);
+          }
 
           setTimeout(() => {
             setFeederHeaders(headers);
@@ -712,6 +881,57 @@ const SizingTab = () => {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Path Discovery Summary */}
+      {pathAnalysis && (
+        <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+          <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+            <AlertCircle className="mr-2" size={20} />
+            Cable Path Analysis (For Sizing & Optimization)
+          </h3>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="bg-slate-700/50 rounded p-4">
+              <p className="text-slate-400 text-sm">Total Paths</p>
+              <p className="text-2xl font-bold text-cyan-400">{pathAnalysis.totalPaths}</p>
+            </div>
+            <div className="bg-slate-700/50 rounded p-4">
+              <p className="text-slate-400 text-sm">Valid Paths</p>
+              <p className="text-2xl font-bold text-green-400">{pathAnalysis.validPaths}</p>
+            </div>
+            <div className="bg-slate-700/50 rounded p-4">
+              <p className="text-slate-400 text-sm">Invalid Paths</p>
+              <p className="text-2xl font-bold text-red-400">{pathAnalysis.invalidPaths}</p>
+            </div>
+            <div className="bg-slate-700/50 rounded p-4">
+              <p className="text-slate-400 text-sm">Avg V-Drop</p>
+              <p className="text-2xl font-bold text-yellow-400">{pathAnalysis.averageVoltageDrop.toFixed(2)}%</p>
+            </div>
+          </div>
+
+          {pathAnalysis.invalidPaths > 0 && (
+            <div className="bg-red-900/20 border border-red-600 rounded p-4 mb-4">
+              <div className="flex gap-3">
+                <AlertCircle className="text-red-500 flex-shrink-0 mt-0.5" size={20} />
+                <div className="text-sm text-red-300">
+                  <p className="font-semibold mb-1">⚠️ {pathAnalysis.invalidPaths} path(s) exceed voltage drop limits</p>
+                  <p className="text-xs opacity-90">These will need larger cable sizes for compliance with IEC 60364 (≤5% limit)</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="bg-blue-900/20 border border-blue-600 rounded p-4">
+            <div className="flex gap-3">
+              <CheckCircle className="text-blue-400 flex-shrink-0 mt-0.5" size={20} />
+              <div className="text-sm text-blue-300">
+                <p className="font-semibold mb-1">✓ Paths discovered & ready for optimization</p>
+                <p className="text-xs opacity-90">Switch to the <strong>Optimization</strong> tab to view detailed path chains, select optimal cable sizes, and run the sizing engine</p>
+              </div>
             </div>
           </div>
         </div>
