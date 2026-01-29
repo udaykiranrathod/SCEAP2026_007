@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Download, FileText, AlertCircle, CheckCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -163,22 +163,32 @@ const ResultsTab = () => {
     if (!pathAnalysis || !pathAnalysis.paths) return [];
 
     const allCables: CableSizingResult[] = [];
-    
+    const seen = new Set<number>();
+
     // Flatten all cables from all paths and calculate sizing
+    // Deduplicate by serialNo while preserving first occurrence order
     pathAnalysis.paths.forEach((path) => {
       path.cables.forEach((cable) => {
-        const result = calculateCableSizing(cable);
-        allCables.push(result);
+        if (!seen.has(cable.serialNo)) {
+          seen.add(cable.serialNo);
+          const result = calculateCableSizing(cable);
+          allCables.push(result);
+        }
       });
     });
 
     return allCables;
   };
 
-  // Initialize results from paths
-  if (results.length === 0 && pathAnalysis && pathAnalysis.paths.length > 0) {
-    setResults(generateResults());
-  }
+  // Initialize results from paths when pathAnalysis changes
+  useEffect(() => {
+    if (pathAnalysis && pathAnalysis.paths && pathAnalysis.paths.length > 0) {
+      setResults(generateResults());
+    } else {
+      setResults([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathAnalysis]);
 
   if (results.length === 0) {
     return (
@@ -414,7 +424,7 @@ const ResultsTab = () => {
             <tbody className="divide-y divide-slate-700">
               {results.map((result) => (
                 <tr
-                  key={result.serialNo}
+                  key={`${result.cableNumber}-${result.serialNo}`}
                   className="hover:bg-slate-700 transition-colors"
                 >
                   <td className="px-3 py-2 text-slate-300">{result.serialNo}</td>
