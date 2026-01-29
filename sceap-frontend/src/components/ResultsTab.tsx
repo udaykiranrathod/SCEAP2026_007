@@ -380,11 +380,10 @@ const ResultsTab = () => {
       </div>
 
       {/* Results Table */}
-      <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden flex flex-col">
-        <div className="flex flex-1 overflow-hidden">
-          {/* Scrollable Table Container with vertical scrollbar */}
-          <div className="flex-1 overflow-x-auto overflow-y-auto max-h-[calc(40*2.5rem)] results-table-scroll">
-            <table className="w-full min-w-[2000px] text-xs">
+      <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+        {/* Scrollable Table Container with both scrollbars */}
+        <div className="overflow-x-auto overflow-y-auto results-table-scroll" style={{ height: '1000px' }}>
+          <table className="w-full min-w-[2000px] text-xs">
             <thead className="bg-slate-700 sticky top-0">
               <tr>
                 <th className="px-3 py-2 text-left text-slate-300">S.No</th>
@@ -509,7 +508,6 @@ const ResultsTab = () => {
               ))}
             </tbody>
           </table>
-            </div>
         </div>
       </div>
 
