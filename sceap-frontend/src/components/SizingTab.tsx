@@ -4,232 +4,12 @@ import * as XLSX from 'xlsx';
 import { Upload, FileText, Calculator, Edit, Trash2, Loader2, Download, AlertCircle, CheckCircle } from 'lucide-react';
 import { normalizeFeeders, analyzeAllPaths } from '../utils/pathDiscoveryService';
 import { usePathContext } from '../context/PathContext';
+import { generateDemoData } from '../utils/demoData';
 
-// Template generation function with hierarchical structure
+// Template generation function with SIMPLE, WORKING hierarchy
 const generateFeederTemplate = () => {
-  // Define the template structure HIERARCHICALLY like an SLD
-  // Key: Use panel headers and group feeders under them
-  
-  const templateData = [
-    // === MAIN TRANSFORMER (TOP LEVEL) ===
-    {
-      'Serial No': 1,
-      'Cable Number': 'CBL-001',
-      'Feeder Description': '**TRANSFORMER MAIN - 415V/50kVA**', // Bold = Panel Header
-      'From Bus': 'TRF-415V',
-      'To Bus': 'MAIN-BUS',
-      'Voltage (V)': 415,
-      'Power Factor': 0.95,
-      'Efficiency (%)': 98,
-      'Derating Factor': 1.0,
-      'Breaker Type': 'ISOLATOR',
-      'Load KW': 0,
-      'Load KVA': 0,
-      'Cable Type': 'XLPE',
-      'Installation Method': 'Cable Tray',
-      'Ambient Temp (°C)': 35,
-      'Ground Temp (°C)': 25,
-      'Length (m)': 5.0
-    },
-    
-    // === MAIN SWITCHGEAR PANEL (LEVEL 1) ===
-    {
-      'Serial No': 2,
-      'Cable Number': 'CBL-002',
-      'Feeder Description': '**MAIN SWITCHGEAR PANEL**',
-      'From Bus': 'MAIN-BUS',
-      'To Bus': 'SWG-MAIN',
-      'Voltage (V)': 415,
-      'Power Factor': 0.95,
-      'Efficiency (%)': 98,
-      'Derating Factor': 1.0,
-      'Breaker Type': 'ACB',
-      'Load KW': 0,
-      'Load KVA': 0,
-      'Cable Type': 'XLPE',
-      'Installation Method': 'Cable Tray',
-      'Ambient Temp (°C)': 35,
-      'Ground Temp (°C)': 25,
-      'Length (m)': 2.0
-    },
-    {
-      'Serial No': 3,
-      'Cable Number': 'CBL-003',
-      'Feeder Description': 'Feeder to PMCC-1',
-      'From Bus': 'SWG-MAIN',
-      'To Bus': 'PMCC-1',
-      'Voltage (V)': 415,
-      'Power Factor': 0.85,
-      'Efficiency (%)': 95,
-      'Derating Factor': 0.87,
-      'Breaker Type': 'ACB-250A',
-      'Load KW': 125.5,
-      'Load KVA': 147.6,
-      'Cable Type': 'XLPE',
-      'Installation Method': 'Cable Tray',
-      'Ambient Temp (°C)': 35,
-      'Ground Temp (°C)': 25,
-      'Length (m)': 25.5
-    },
-    {
-      'Serial No': 4,
-      'Cable Number': 'CBL-004',
-      'Feeder Description': 'Feeder to PMCC-2',
-      'From Bus': 'SWG-MAIN',
-      'To Bus': 'PMCC-2',
-      'Voltage (V)': 415,
-      'Power Factor': 0.86,
-      'Efficiency (%)': 94,
-      'Derating Factor': 0.88,
-      'Breaker Type': 'ACB-200A',
-      'Load KW': 180.7,
-      'Load KVA': 210.2,
-      'Cable Type': 'XLPE',
-      'Installation Method': 'Cable Tray',
-      'Ambient Temp (°C)': 38,
-      'Ground Temp (°C)': 28,
-      'Length (m)': 42.3
-    },
-    
-    // === PMCC-1 PANEL (LEVEL 2) ===
-    {}, // Empty row = gap between sections
-    {
-      'Serial No': 5,
-      'Cable Number': 'CBL-005',
-      'Feeder Description': '**PMCC-1 PANEL (250kVA)**',
-      'From Bus': 'PMCC-1',
-      'To Bus': 'PMCC-1-BUS',
-      'Voltage (V)': 415,
-      'Power Factor': 0.95,
-      'Efficiency (%)': 98,
-      'Derating Factor': 1.0,
-      'Breaker Type': 'MCCB',
-      'Load KW': 0,
-      'Load KVA': 0,
-      'Cable Type': 'XLPE',
-      'Installation Method': 'Cable Tray',
-      'Ambient Temp (°C)': 35,
-      'Ground Temp (°C)': 25,
-      'Length (m)': 1.0
-    },
-    {
-      'Serial No': 6,
-      'Cable Number': 'CBL-006',
-      'Feeder Description': 'Feeder to MCC-1',
-      'From Bus': 'PMCC-1-BUS',
-      'To Bus': 'MCC-1',
-      'Voltage (V)': 415,
-      'Power Factor': 0.88,
-      'Efficiency (%)': 92,
-      'Derating Factor': 0.85,
-      'Breaker Type': 'MCCB-150A',
-      'Load KW': 95.8,
-      'Load KVA': 109.1,
-      'Cable Type': 'PVC',
-      'Installation Method': 'Conduit',
-      'Ambient Temp (°C)': 40,
-      'Ground Temp (°C)': 30,
-      'Length (m)': 18.2
-    },
-    {
-      'Serial No': 7,
-      'Cable Number': 'CBL-007',
-      'Feeder Description': 'Feeder to Lighting',
-      'From Bus': 'PMCC-1-BUS',
-      'To Bus': 'LIGHTING-1',
-      'Voltage (V)': 415,
-      'Power Factor': 0.95,
-      'Efficiency (%)': 98,
-      'Derating Factor': 0.92,
-      'Breaker Type': 'MCB-63A',
-      'Load KW': 25.3,
-      'Load KVA': 26.6,
-      'Cable Type': 'PVC',
-      'Installation Method': 'Cable Tray',
-      'Ambient Temp (°C)': 35,
-      'Ground Temp (°C)': 25,
-      'Length (m)': 12.5
-    },
-    
-    // === MCC-1 PANEL (LEVEL 3 - End loads) ===
-    {}, // Empty row = gap between sections
-    {
-      'Serial No': 8,
-      'Cable Number': 'CBL-008',
-      'Feeder Description': '**MCC-1 PANEL (150kVA)**',
-      'From Bus': 'MCC-1',
-      'To Bus': 'MCC-1-BUS',
-      'Voltage (V)': 415,
-      'Power Factor': 0.95,
-      'Efficiency (%)': 98,
-      'Derating Factor': 1.0,
-      'Breaker Type': 'MCCB',
-      'Load KW': 0,
-      'Load KVA': 0,
-      'Cable Type': 'XLPE',
-      'Installation Method': 'Cable Tray',
-      'Ambient Temp (°C)': 35,
-      'Ground Temp (°C)': 25,
-      'Length (m)': 1.0
-    },
-    {
-      'Serial No': 9,
-      'Cable Number': 'CBL-009',
-      'Feeder Description': 'Motor-1 (75kW)',
-      'From Bus': 'MCC-1-BUS',
-      'To Bus': 'MOTOR-1',
-      'Voltage (V)': 415,
-      'Power Factor': 0.82,
-      'Efficiency (%)': 89,
-      'Derating Factor': 0.90,
-      'Breaker Type': 'MCCB-160A',
-      'Load KW': 75.0,
-      'Load KVA': 91.5,
-      'Cable Type': 'XLPE',
-      'Installation Method': 'Direct Burial',
-      'Ambient Temp (°C)': 30,
-      'Ground Temp (°C)': 20,
-      'Length (m)': 35.8
-    },
-    {
-      'Serial No': 10,
-      'Cable Number': 'CBL-010',
-      'Feeder Description': 'Motor-2 (45kW)',
-      'From Bus': 'MCC-1-BUS',
-      'To Bus': 'MOTOR-2',
-      'Voltage (V)': 415,
-      'Power Factor': 0.80,
-      'Efficiency (%)': 88,
-      'Derating Factor': 0.88,
-      'Breaker Type': 'MCCB-100A',
-      'Load KW': 45.0,
-      'Load KVA': 56.3,
-      'Cable Type': 'XLPE',
-      'Installation Method': 'Conduit',
-      'Ambient Temp (°C)': 32,
-      'Ground Temp (°C)': 22,
-      'Length (m)': 28.5
-    },
-    {
-      'Serial No': 11,
-      'Cable Number': 'CBL-011',
-      'Feeder Description': 'Pump (30kW)',
-      'From Bus': 'MCC-1-BUS',
-      'To Bus': 'PUMP-1',
-      'Voltage (V)': 415,
-      'Power Factor': 0.85,
-      'Efficiency (%)': 91,
-      'Derating Factor': 0.89,
-      'Breaker Type': 'MCCB-63A',
-      'Load KW': 30.0,
-      'Load KVA': 35.3,
-      'Cable Type': 'PVC',
-      'Installation Method': 'Conduit',
-      'Ambient Temp (°C)': 35,
-      'Ground Temp (°C)': 25,
-      'Length (m)': 22.0
-    }
-  ];
+  // Use the demo data which is proven to work with the path discovery algorithm
+  const templateData = generateDemoData();
 
   // Filter out empty rows for Excel export
   const cleanData = templateData.filter((row: any) => Object.keys(row).length > 0);
@@ -260,65 +40,66 @@ const generateFeederTemplate = () => {
   ];
   ws['!cols'] = colWidths;
 
-  XLSX.utils.book_append_sheet(wb, ws, 'Hierarchical_Feeders');
+  XLSX.utils.book_append_sheet(wb, ws, 'Feeders');
 
   // Create instructions sheet
   const instructionsData = [
     { 
-      'STRUCTURE': 'How to Format Your Feeder List for SLD Path Discovery',
-      'EXAMPLE': '',
-      'NOTES': ''
-    },
-    { 'STRUCTURE': '', 'EXAMPLE': '', 'NOTES': '' },
-    { 
-      'STRUCTURE': '1. Panel Headers',
-      'EXAMPLE': '**PANEL NAME**  (or include PMCC, MCC, Transformer)',
-      'NOTES': 'Start a new section with bold text or bus name as heading'
+      'KEY RULE': '★ CRITICAL ★',
+      'Description': 'From Bus = WHERE THE LOAD IS (child/destination)',
+      'Example': 'If a motor is at "MOTOR-1", From Bus = "MOTOR-1"'
     },
     { 
-      'STRUCTURE': '2. Feeders Under Panel',
-      'EXAMPLE': 'List all loads/feeders connected to that bus',
-      'NOTES': 'From Bus = Bus this feeder originates from (child), To Bus = Parent bus'
+      'KEY RULE': '★ CRITICAL ★',
+      'Description': 'To Bus = WHERE POWER COMES FROM (parent/source)',
+      'Example': 'If power comes from "PMCC-1", To Bus = "PMCC-1"'
+    },
+    { 'KEY RULE': '', 'Description': '', 'Example': '' },
+    { 
+      'KEY RULE': 'HIERARCHY DIRECTION',
+      'Description': 'Cables always go FROM loads (bottom) TO panels (top)',
+      'Example': 'MOTOR-1 ← MCC-1 ← PMCC-1 ← MAIN-PANEL ← TRF-MAIN'
+    },
+    { 'KEY RULE': '', 'Description': '', 'Example': '' },
+    { 
+      'KEY RULE': 'EXAMPLE PATH',
+      'Description': 'Row: From Bus = "MOTOR-1", To Bus = "MCC-1"',
+      'Example': 'Means: Power flows from MCC-1 to MOTOR-1'
     },
     { 
-      'STRUCTURE': '3. Empty Row',
-      'EXAMPLE': '[Skip 1-2 rows between sections]',
-      'NOTES': 'Use empty rows to separate different panels/hierarchies'
+      'KEY RULE': 'BUS NAMING',
+      'Description': 'Use consistent bus names throughout the sheet',
+      'Example': 'TRF-MAIN, MAIN-PANEL, PMCC-1, MCC-1, MOTOR-1, LIGHT-L1'
     },
-    { 'STRUCTURE': '', 'EXAMPLE': '', 'NOTES': '' },
+    { 'KEY RULE': '', 'Description': '', 'Example': '' },
     { 
-      'STRUCTURE': 'HIERARCHY EXAMPLE:',
-      'EXAMPLE': 'Transformer → Main Switchgear → PMCC-1 → MCC-1 → Motors/Loads',
-      'NOTES': 'From Bus and To Bus create the chain'
-    },
-    { 
-      'STRUCTURE': 'IMPORTANT:',
-      'EXAMPLE': 'From Bus = Load side (lower level), To Bus = Source side (higher level)',
-      'NOTES': 'This allows the system to trace paths from any load back to transformer'
+      'KEY RULE': 'WHAT THE SYSTEM DOES',
+      'Description': 'Automatically discovers all cable paths from loads back to transformer',
+      'Example': '7 feeders in template = 4 unique paths discovered automatically'
     },
     { 
-      'STRUCTURE': 'BUS NAMING:',
-      'EXAMPLE': 'TRF-415V, MAIN-BUS, PMCC-1, MCC-1, MOTOR-1, LIGHTING-1, etc.',
-      'NOTES': 'Use consistent, meaningful names. Include "TRF" or "TRANSFORMER" for main source'
+      'KEY RULE': 'VALIDATION',
+      'Description': 'Paths are validated for voltage drop compliance (IEC 60364)',
+      'Example': 'Green checkmark ✓ = Valid (V-drop < 5%), Red ✗ = Exceeds limit'
     },
     { 
-      'STRUCTURE': 'RESULT:',
-      'EXAMPLE': 'System automatically discovers all paths and creates cable sizing chains',
-      'NOTES': 'Path: MOTOR-1 ← MCC-1 ← PMCC-1 ← MAIN-BUS ← TRANSFORMER'
+      'KEY RULE': 'OPTIMIZE PAGE',
+      'Description': 'All discovered paths appear in Optimization tab for cable sizing',
+      'Example': 'Select appropriate cable size from dropdown for each path'
     }
   ];
 
   const wsInstructions = XLSX.utils.json_to_sheet(instructionsData);
   const instructionWidths = [
-    { wch: 25 },
-    { wch: 60 },
+    { wch: 20 },
+    { wch: 55 },
     { wch: 50 }
   ];
   wsInstructions['!cols'] = instructionWidths;
-  XLSX.utils.book_append_sheet(wb, wsInstructions, 'How_To_Structure');
+  XLSX.utils.book_append_sheet(wb, wsInstructions, 'INSTRUCTIONS - Read First');
 
   // Download the file
-  XLSX.writeFile(wb, 'SCEAP_Feeder_List_Template_Hierarchical.xlsx');
+  XLSX.writeFile(wb, 'SCEAP_Demo_Template.xlsx');
 };
 
 interface FeederData {
