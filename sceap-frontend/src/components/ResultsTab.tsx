@@ -245,65 +245,76 @@ const ResultsTab = () => {
   };
 
   const handleExportPDF = () => {
-    const doc = new jsPDF({
-      orientation: 'landscape',
-      unit: 'mm',
-      format: 'a4',
-    });
+    try {
+      const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4',
+      });
 
-    const tableData = results.map((r) => [
-      r.serialNo,
-      r.cableNumber,
-      r.feederDescription.substring(0, 20),
-      r.fromBus,
-      r.toBus,
-      r.voltage,
-      r.loadKW.toFixed(1),
-      r.length.toFixed(1),
-      r.deratedCurrent.toFixed(1),
-      r.voltageDropPercent.toFixed(2),
-      r.sizeByCurrent,
-      r.sizeByVoltageDrop,
-      r.suitableCableSize,
-      r.breakerSize,
-      r.status.toUpperCase(),
-    ]);
+      const tableData = results.map((r) => [
+        String(r.serialNo),
+        r.cableNumber,
+        r.feederDescription.substring(0, 25),
+        r.fromBus,
+        r.toBus,
+        String(r.voltage),
+        r.loadKW.toFixed(1),
+        r.length.toFixed(1),
+        r.deratedCurrent.toFixed(1),
+        r.voltageDropPercent.toFixed(2),
+        String(r.sizeByCurrent),
+        String(r.sizeByVoltageDrop),
+        String(r.suitableCableSize),
+        r.breakerSize,
+        r.status.toUpperCase(),
+      ]);
 
-    (doc as any).autoTable({
-      head: [
-        [
-          'S.No',
-          'Cable #',
-          'Description',
-          'From',
-          'To',
-          'V',
-          'kW',
-          'L(m)',
-          'I(A)',
-          'V%',
-          'I-Size',
-          'V-Size',
-          'Final',
-          'Breaker',
-          'Status',
-        ],
-      ],
-      body: tableData,
-      startY: 20,
-      styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: [41, 128, 185], textColor: 255 },
-      alternateRowStyles: { fillColor: [240, 248, 255] },
-    });
+      // Use dynamic import pattern for autoTable
+      const jsPDFWithAutoTable = doc as any;
+      
+      if (jsPDFWithAutoTable.autoTable) {
+        jsPDFWithAutoTable.autoTable({
+          head: [
+            [
+              'S.No',
+              'Cable #',
+              'Description',
+              'From',
+              'To',
+              'V',
+              'kW',
+              'L(m)',
+              'I(A)',
+              'V%',
+              'I-Size',
+              'V-Size',
+              'Final',
+              'Breaker',
+              'Status',
+            ],
+          ],
+          body: tableData,
+          startY: 20,
+          styles: { fontSize: 8, cellPadding: 2 },
+          headStyles: { fillColor: [41, 128, 185], textColor: 255 },
+          alternateRowStyles: { fillColor: [240, 248, 255] },
+          margin: { top: 25 },
+        });
+      }
 
-    doc.text(
-      `Cable Sizing Results - ${new Date().toLocaleDateString()}`,
-      14,
-      10
-    );
-    doc.save(
-      `cable_sizing_results_${new Date().toISOString().split('T')[0]}.pdf`
-    );
+      doc.text(
+        `Cable Sizing Results - ${new Date().toLocaleDateString()}`,
+        14,
+        10
+      );
+      
+      const fileName = `cable_sizing_results_${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(fileName);
+    } catch (error) {
+      console.error('PDF export error:', error);
+      alert('Failed to export PDF. Check browser console for details.');
+    }
   };
 
   const validResults = results.filter((r) => r.status === 'valid').length;
