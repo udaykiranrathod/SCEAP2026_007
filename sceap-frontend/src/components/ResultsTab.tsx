@@ -30,6 +30,12 @@ interface CableSizingResult {
   shortCircuitCurrent: number;
   breakerSize: string;
   status: 'valid' | 'invalid';
+  // NEW FIELDS FOR PROFESSIONAL CABLE SIZING
+  numberOfCores: number;
+  conductorMaterial: 'Cu' | 'Al';
+  numberOfRuns: number;
+  cableSizeSQMM: number;
+  cableDesignation: string;
 }
 
 // Standard cable sizing table (mm² → max current capacity at 70°C)
@@ -74,11 +80,20 @@ const CABLE_RESISTANCE: Record<number, number> = {
   300: 0.0601,
 };
 
+/**
+ * ENHANCED CABLE SIZING WITH RUNS CALCULATION
+ * Implements IEC 60364 standards for professional cable designation
+ * Format: Number_of_Runs X Number_of_Cores C X Cable_Size SQMM (Material)
+ */
 const calculateCableSizing = (cable: CableSegment): CableSizingResult => {
   const PF = 0.85; // Power factor
   const EFFICIENCY = 0.95;
   const SQRT3 = 1.732;
   const SHORT_CIRCUIT = 30000; // kA - assumed
+  
+  // Get number of cores and material from cable segment
+  const numberOfCores = cable.numberOfCores || 4; // Default 4C for 3-phase
+  const conductorMaterial = cable.conductorMaterial || 'Cu'; // Default Copper
 
   // 1. Calculate Full Load Current: I = (P × 1000) / (√3 × V × PF × Eff)
   const FLC = (cable.loadKW * 1000) / (SQRT3 * cable.voltage * PF * EFFICIENCY);
@@ -124,6 +139,49 @@ const calculateCableSizing = (cable: CableSegment): CableSizingResult => {
     sizeByShortCircuit
   );
 
+  // ========== NEW: CALCULATE OPTIMAL NUMBER OF RUNS ==========
+  // Algorithm: Find best number of runs that keeps cable size practical
+  // Practical range: 16-240 SQMM (standard IEC sizes)
+  
+  let numberOfRuns = 1;
+  let finalCableSize = suitableSize;
+  
+  const MAX_SINGLE_CABLE_CAPACITY = 550; // 240 SQMM at 70°C = 550A (conservative)
+  
+  // Check if current exceeds single cable capacity
+  if (requiredCurrent > MAX_SINGLE_CABLE_CAPACITY) {
+    numberOfRuns = Math.ceil(requiredCurrent / MAX_SINGLE_CABLE_CAPACITY);
+  } else {
+    // For smaller currents, keep 1 run if reasonable
+    numberOfRuns = 1;
+  }
+  
+  // Calculate current per run
+  const currentPerRun = requiredCurrent / numberOfRuns;
+  
+  // Find cable size for the per-run current
+  for (const [size, capacity] of Object.entries(CABLE_AMPACITY)) {
+    if (capacity >= currentPerRun) {
+      finalCableSize = Number(size);
+      break;
+    }
+  }
+  
+  // If size is still too large (>240), increase runs instead
+  if (finalCableSize > 240 && numberOfRuns < 10) {
+    numberOfRuns++;
+    const newCurrentPerRun = requiredCurrent / numberOfRuns;
+    for (const [size, capacity] of Object.entries(CABLE_AMPACITY)) {
+      if (capacity >= newCurrentPerRun) {
+        finalCableSize = Number(size);
+        break;
+      }
+    }
+  }
+  
+  // Generate cable designation: e.g., "2 X 3 C X 120 SQMM (Cu)"
+  const cableDesignation = `${numberOfRuns} X ${numberOfCores} C X ${finalCableSize} SQMM (${conductorMaterial})`;
+
   // 8. Determine breaker size
   const breakerSize = `${Math.ceil(deratedCurrent / 10) * 10}A`;
 
@@ -150,6 +208,12 @@ const calculateCableSizing = (cable: CableSegment): CableSizingResult => {
     suitableCableSize: suitableSize,
     shortCircuitCurrent: SHORT_CIRCUIT,
     breakerSize: breakerSize,
+    // NEW FIELDS
+    numberOfCores: numberOfCores,
+    conductorMaterial: conductorMaterial,
+    numberOfRuns: numberOfRuns,
+    cableSizeSQMM: finalCableSize,
+    cableDesignation: cableDesignation,
     status: vdropPercent <= 5 ? 'valid' : 'invalid',
   };
 };
@@ -229,6 +293,11 @@ const ResultsTab = () => {
       'Size by V-Drop (mm²)': r.sizeByVoltageDrop,
       'Size by Isc (mm²)': r.sizeByShortCircuit,
       'Suitable Cable Size (mm²)': r.suitableCableSize,
+      'Number of Cores': r.numberOfCores,
+      'Conductor Material': r.conductorMaterial,
+      'Number of Runs': r.numberOfRuns,
+      'Final Cable Size (mm²)': r.cableSizeSQMM,
+      'Cable Designation': r.cableDesignation,
       'Isc (kA)': (r.shortCircuitCurrent / 1000).toFixed(1),
       'Breaker': r.breakerSize,
       'Status': r.status.toUpperCase(),
@@ -255,7 +324,7 @@ const ResultsTab = () => {
       const tableData = results.map((r) => [
         String(r.serialNo),
         r.cableNumber,
-        r.feederDescription.substring(0, 25),
+        r.feederDescription.substring(0, 20),
         r.fromBus,
         r.toBus,
         String(r.voltage),
@@ -266,6 +335,8 @@ const ResultsTab = () => {
         String(r.sizeByCurrent),
         String(r.sizeByVoltageDrop),
         String(r.suitableCableSize),
+        String(r.numberOfRuns),
+        r.cableDesignation,
         r.breakerSize,
         r.status.toUpperCase(),
       ]);
@@ -290,13 +361,15 @@ const ResultsTab = () => {
               'I-Size',
               'V-Size',
               'Final',
+              'Runs',
+              'Designation',
               'Breaker',
               'Status',
             ],
           ],
           body: tableData,
           startY: 20,
-          styles: { fontSize: 8, cellPadding: 2 },
+          styles: { fontSize: 7, cellPadding: 2 },
           headStyles: { fillColor: [41, 128, 185], textColor: 255 },
           alternateRowStyles: { fillColor: [240, 248, 255] },
           margin: { top: 25 },
@@ -429,6 +502,12 @@ const ResultsTab = () => {
                 <th className="px-3 py-2 text-center font-bold text-cyan-400">
                   Final Size (mm²)
                 </th>
+                <th className="px-3 py-2 text-center font-bold text-green-400">
+                  No. of Runs
+                </th>
+                <th className="px-3 py-2 text-center font-bold text-purple-400">
+                  Cable Designation
+                </th>
                 <th className="px-3 py-2 text-left text-slate-300">Breaker</th>
                 <th className="px-3 py-2 text-center text-slate-300">Status</th>
               </tr>
@@ -489,6 +568,12 @@ const ResultsTab = () => {
                   </td>
                   <td className="px-3 py-2 text-center font-bold text-cyan-400 bg-slate-700/50 rounded">
                     {result.suitableCableSize}
+                  </td>
+                  <td className="px-3 py-2 text-center font-bold text-green-400 bg-slate-700/50 rounded">
+                    {result.numberOfRuns}
+                  </td>
+                  <td className="px-3 py-2 text-center font-bold text-purple-300 bg-purple-900/30 rounded whitespace-nowrap">
+                    {result.cableDesignation}
                   </td>
                   <td className="px-3 py-2 text-slate-300">
                     {result.breakerSize}

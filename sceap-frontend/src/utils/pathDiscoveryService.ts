@@ -31,6 +31,10 @@ export interface CableSegment {
   deratingFactor: number;
   resistance?: number;
   reactance?: number;
+  // NEW FIELDS FOR PROFESSIONAL CABLE SIZING
+  numberOfCores?: number; // 1C, 2C, 3C, 4C, 5C
+  conductorMaterial?: 'Cu' | 'Al'; // Copper or Aluminum
+  systemPhase?: '1Ø' | '3Ø'; // Single or Three Phase
 }
 
 export interface PathAnalysisResult {
@@ -60,7 +64,13 @@ export const normalizeFeeders = (rawFeeders: any[]): CableSegment[] => {
       length: Number(feeder['Length (m)'] || feeder['length'] || 0),
       deratingFactor: Number(feeder['Derating Factor'] || feeder['deratingFactor'] || 0.87),
       resistance: Number(feeder['Resistance'] || feeder['resistance'] || 0),
-      reactance: Number(feeder['Reactance'] || feeder['reactance'] || 0)
+      reactance: Number(feeder['Reactance'] || feeder['reactance'] || 0),
+      // NEW: Read number of cores from Excel if available, default to 4C for 3-phase
+      numberOfCores: Number(feeder['Number of Cores'] || feeder['numberOfCores'] || feeder['Core'] || 4),
+      // NEW: Read conductor material, default to Copper
+      conductorMaterial: (feeder['Material'] || feeder['conductorMaterial'] || 'Cu').toUpperCase() === 'AL' ? 'Al' : 'Cu',
+      // NEW: Determine system phase (default 3Ø for 415V systems)
+      systemPhase: feeder['Phase'] || feeder['systemPhase'] || (Number(feeder['Voltage (V)'] || 415) >= 400 ? '3Ø' : '1Ø')
     }));
 };
 
