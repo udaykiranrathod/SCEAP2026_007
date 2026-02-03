@@ -102,6 +102,76 @@ const generateFeederTemplate = () => {
   XLSX.writeFile(wb, 'SCEAP_Demo_Template.xlsx');
 };
 
+// Generate Catalog Template with core configs
+const generateCatalogTemplate = () => {
+  const wb = XLSX.utils.book_new();
+
+  // Define core configs and their catalogs
+  const coreConfigs = ['2C', '3C', '4C', '1C'];
+  const catalogSizes = [
+    { area: 2.5, air: 24, trench: 20, duct: 17, r90: 7.41, x: 0.165, dia: 7.9 },
+    { area: 4, air: 32, trench: 28, duct: 23, r90: 4.61, x: 0.16, dia: 9.9 },
+    { area: 6, air: 41, trench: 36, duct: 29, r90: 3.08, x: 0.156, dia: 11.5 },
+    { area: 10, air: 57, trench: 50, duct: 41, r90: 1.83, x: 0.149, dia: 14 },
+    { area: 16, air: 76, trench: 68, duct: 56, r90: 1.15, x: 0.144, dia: 16.5 },
+    { area: 25, air: 101, trench: 92, duct: 76, r90: 0.727, x: 0.139, dia: 19.2 },
+    { area: 35, air: 128, trench: 119, duct: 98, r90: 0.524, x: 0.136, dia: 21.6 },
+    { area: 50, air: 158, trench: 148, duct: 123, r90: 0.387, x: 0.133, dia: 24.1 },
+    { area: 70, air: 206, trench: 196, duct: 163, r90: 0.268, x: 0.13, dia: 27.5 },
+    { area: 95, air: 260, trench: 250, duct: 209, r90: 0.193, x: 0.128, dia: 31 },
+    { area: 120, air: 308, trench: 298, duct: 250, r90: 0.153, x: 0.127, dia: 34.5 },
+    { area: 150, air: 356, trench: 348, duct: 293, r90: 0.124, x: 0.125, dia: 37.6 },
+    { area: 185, air: 410, trench: 403, duct: 342, r90: 0.0991, x: 0.124, dia: 41 },
+    { area: 240, air: 489, trench: 485, duct: 415, r90: 0.0754, x: 0.122, dia: 45.7 },
+    { area: 300, air: 563, trench: 561, duct: 485, r90: 0.0605, x: 0.121, dia: 50.3 },
+    { area: 400, air: 666, trench: 667, duct: 582, r90: 0.0453, x: 0.12, dia: 56.3 }
+  ];
+
+  // Create a sheet for each core config
+  coreConfigs.forEach(coreConfig => {
+    const data = catalogSizes.map(s => ({
+      'Size (mm²)': s.area,
+      'Number of Cores': coreConfig,
+      'Air Rating (A)': s.air,
+      'Trench Rating (A)': s.trench,
+      'Duct Rating (A)': s.duct,
+      'Resistance @ 90°C (Ω/km)': s.r90,
+      'Reactance (Ω/km)': s.x,
+      'Cable Diameter (mm)': s.dia
+    }));
+    
+    const ws = XLSX.utils.json_to_sheet(data);
+    ws['!cols'] = [
+      { wch: 15 },
+      { wch: 18 },
+      { wch: 15 },
+      { wch: 18 },
+      { wch: 15 },
+      { wch: 22 },
+      { wch: 18 },
+      { wch: 20 }
+    ];
+    XLSX.utils.book_append_sheet(wb, ws, coreConfig);
+  });
+
+  // Add derating factors sheet
+  const deratingData = [
+    { Factor: 'Temperature', Method: 'Air', Value: 1.0, Description: 'Temperature factor for ambient' },
+    { Factor: 'Temperature', Method: 'Trench', Value: 0.9, Description: 'Temperature factor for buried' },
+    { Factor: 'Temperature', Method: 'Duct', Value: 0.95, Description: 'Temperature factor for duct' },
+    { Factor: 'Grouping', Circuits: 1, Factor_Value: 1.0, Description: '1 circuit' },
+    { Factor: 'Grouping', Circuits: 2, Factor_Value: 0.9, Description: '2 circuits' },
+    { Factor: 'Grouping', Circuits: 3, Factor_Value: 0.8, Description: '3 circuits' },
+    { Factor: 'Grouping', Circuits: 4, Factor_Value: 0.75, Description: '4 circuits' },
+  ];
+  
+  const wsDerat = XLSX.utils.json_to_sheet(deratingData);
+  wsDerat['!cols'] = [{ wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 40 }];
+  XLSX.utils.book_append_sheet(wb, wsDerat, 'Derating Factors');
+
+  XLSX.writeFile(wb, 'CATALOG_TEMPLATE.xlsx');
+};
+
 interface FeederData {
   id: number;
   [key: string]: any; // Allow any additional columns from Excel
@@ -109,6 +179,7 @@ interface FeederData {
 
 interface CableCatalogue {
   size: number;
+  cores?: '1C' | '2C' | '3C' | '4C';
   current: number;
   resistance: number;
   reactance: number;
@@ -489,6 +560,35 @@ const SizingTab = () => {
         </div>
       </div>
 
+      {/* Catalog Template Download Section */}
+      <div className="bg-gradient-to-r from-green-900/20 to-emerald-900/20 rounded-lg p-6 border border-green-700/50">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-white mb-2 flex items-center">
+              <FileText className="mr-2" size={20} />
+              Cable Catalog Template
+            </h3>
+            <p className="text-slate-300 text-sm mb-4">
+              Download the cable catalog template organized by core configurations (1C, 2C, 3C, 4C). 
+              Customize it with your own cable sizes and ratings, then upload it for sizing calculations.
+            </p>
+            <div className="flex flex-wrap gap-4 text-xs text-slate-400">
+              <span className="bg-slate-700 px-2 py-1 rounded">4 Core Config Sheets</span>
+              <span className="bg-slate-700 px-2 py-1 rounded">Derating Factors Sheet</span>
+              <span className="bg-slate-700 px-2 py-1 rounded">Air/Trench/Duct Ratings</span>
+              <span className="bg-slate-700 px-2 py-1 rounded">User-Editable</span>
+            </div>
+          </div>
+          <button
+            onClick={generateCatalogTemplate}
+            className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white px-6 py-3 rounded-lg flex items-center gap-2 font-medium transition-all duration-200 transform hover:scale-105 shadow-lg"
+          >
+            <Download size={20} />
+            Download Catalog Template
+          </button>
+        </div>
+      </div>
+
       {/* Upload Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Feeder List Upload */}
@@ -731,6 +831,9 @@ const SizingTab = () => {
             <thead className="bg-slate-700 sticky top-0 z-10">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider whitespace-nowrap">
+                  Cores
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider whitespace-nowrap">
                   Size (mm²)
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider whitespace-nowrap">
@@ -747,6 +850,7 @@ const SizingTab = () => {
             <tbody className="bg-slate-800 divide-y divide-slate-700">
               {catalogue.map((item, index) => (
                 <tr key={index} className="hover:bg-slate-700">
+                  <td className="px-4 py-3 text-sm text-cyan-400 font-semibold whitespace-nowrap">{item.cores || '3C'}</td>
                   <td className="px-4 py-3 text-sm text-slate-300 whitespace-nowrap">{item.size}</td>
                   <td className="px-4 py-3 text-sm text-slate-300 whitespace-nowrap">{item.current}</td>
                   <td className="px-4 py-3 text-sm text-slate-300 whitespace-nowrap">{item.resistance}</td>

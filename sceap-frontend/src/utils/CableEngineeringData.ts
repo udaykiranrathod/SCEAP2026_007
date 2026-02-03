@@ -143,175 +143,127 @@ export const ConductorDatabase = {
 };
 
 /**
- * SECTION 2: CURRENT CARRYING CAPACITY TABLES
- * Based on IEC 60364-5-52 and local standards
- * These are CABLE CATALOG RATINGS (not yet derated)
+ * SECTION 2: CURRENT CARRYING CAPACITY TABLES (CATALOG-BASED)
+ * Multi-core cables: 2C, 3C, 3.5C, 4C configurations
+ * Each size includes: Air, Trench, Duct ratings (A)
+ * Format: "2C X 25" means 2-core cable with 25mm² conductor
+ * Based on 600/1100V XLPE @ 90°C per manufacturer catalog
  */
 
 export const AmpacityTables = {
-  // Cu 3-core XLPE cable, 90°C, in air (touching) - IEC standard
-  copper_3core_XLPE_90C_air: {
-    1: 13,
-    1.5: 18,
-    2.5: 25,
-    4: 33,
-    6: 43,
-    10: 61,
-    16: 80,
-    25: 110,
-    35: 145,
-    50: 180,
-    70: 225,
-    95: 275,
-    120: 320,
-    150: 370,
-    185: 430,
-    240: 530,
-    300: 640,
-    400: 790,
-    500: 930,
-    630: 1120
+  // 2-core cables (600/1100V XLPE @ 90°C)
+  '2C': {
+    '2.5': { air: 39, trench: 47, duct: 40, resistance_90C: 9.450, reactance: 0.1070, cableDia: 12 },
+    '4': { air: 52, trench: 63, duct: 52, resistance_90C: 5.880, reactance: 0.0930, cableDia: 13 },
+    '6': { air: 67, trench: 79, duct: 66, resistance_90C: 3.930, reactance: 0.0890, cableDia: 14.2 },
+    '10': { air: 90, trench: 106, duct: 87, resistance_90C: 2.330, reactance: 0.0840, cableDia: 15.6 },
+    '16': { air: 120, trench: 137, duct: 112, resistance_90C: 1.470, reactance: 0.0810, cableDia: 17.8 },
+    '25': { air: 156, trench: 177, duct: 144, resistance_90C: 0.927, reactance: 0.0810, cableDia: 21 },
+    '35': { air: 193, trench: 212, duct: 173, resistance_90C: 0.668, reactance: 0.0790, cableDia: 23.2 },
+    '50': { air: 232, trench: 252, duct: 205, resistance_90C: 0.494, reactance: 0.0750, cableDia: 26.3 },
+    '70': { air: 292, trench: 308, duct: 253, resistance_90C: 0.342, reactance: 0.0740, cableDia: 29.9 },
+    '95': { air: 360, trench: 371, duct: 304, resistance_90C: 0.247, reactance: 0.0730, cableDia: 33.9 },
+    '120': { air: 416, trench: 420, duct: 347, resistance_90C: 0.197, reactance: 0.0720, cableDia: 37.5 },
+    '150': { air: 353, trench: 471, duct: 390, resistance_90C: 0.160, reactance: 0.0720, cableDia: 41.5 },
+    '185': { air: 548, trench: 531, duct: 442, resistance_90C: 0.128, reactance: 0.0720, cableDia: 45.7 },
+    '240': { air: 658, trench: 615, duct: 512, resistance_90C: 0.0986, reactance: 0.0920, cableDia: 51.5 },
+    '300': { air: 745, trench: 688, duct: 575, resistance_90C: 0.0800, reactance: 0.0900, cableDia: 56.1 },
+    '400': { air: 867, trench: 776, duct: 650, resistance_90C: 0.0640, reactance: 0.0900, cableDia: 63.3 }
   },
 
-  // Cu 3-core PVC cable, 70°C, in air (touching)
-  copper_3core_PVC_70C_air: {
-    1: 11,
-    1.5: 15,
-    2.5: 20,
-    4: 27,
-    6: 36,
-    10: 50,
-    16: 65,
-    25: 90,
-    35: 120,
-    50: 150,
-    70: 185,
-    95: 225,
-    120: 260,
-    150: 305,
-    185: 355,
-    240: 435,
-    300: 520
+  // 3-core cables (600/1100V XLPE @ 90°C)
+  '3C': {
+    '1.5': { air: 24, trench: 32, duct: 25, resistance_90C: 15.43, reactance: 0.115, cableDia: 11.7 },
+    '2.5': { air: 33, trench: 41, duct: 33, resistance_90C: 9.450, reactance: 0.1070, cableDia: 12.6 },
+    '4': { air: 45, trench: 53, duct: 44, resistance_90C: 5.880, reactance: 0.0930, cableDia: 13.7 },
+    '6': { air: 56, trench: 67, duct: 54, resistance_90C: 3.930, reactance: 0.0890, cableDia: 15.0 },
+    '10': { air: 78, trench: 89, duct: 73, resistance_90C: 2.330, reactance: 0.0840, cableDia: 16.5 },
+    '16': { air: 101, trench: 115, duct: 94, resistance_90C: 1.470, reactance: 0.0810, cableDia: 18.9 },
+    '25': { air: 133, trench: 148, duct: 121, resistance_90C: 0.927, reactance: 0.0810, cableDia: 19.9 },
+    '35': { air: 163, trench: 177, duct: 145, resistance_90C: 0.668, reactance: 0.0790, cableDia: 22.3 },
+    '50': { air: 199, trench: 211, duct: 172, resistance_90C: 0.494, reactance: 0.0750, cableDia: 25.5 },
+    '70': { air: 250, trench: 259, duct: 211, resistance_90C: 0.342, reactance: 0.0740, cableDia: 28.2 },
+    '95': { air: 309, trench: 310, duct: 255, resistance_90C: 0.247, reactance: 0.0730, cableDia: 32.2 },
+    '120': { air: 357, trench: 353, duct: 292, resistance_90C: 0.197, reactance: 0.0720, cableDia: 35.8 },
+    '150': { air: 409, trench: 394, duct: 329, resistance_90C: 0.160, reactance: 0.0720, cableDia: 39.0 },
+    '185': { air: 471, trench: 445, duct: 372, resistance_90C: 0.128, reactance: 0.0720, cableDia: 43.6 },
+    '240': { air: 556, trench: 514, duct: 429, resistance_90C: 0.0986, reactance: 0.0920, cableDia: 49.6 },
+    '300': { air: 633, trench: 575, duct: 483, resistance_90C: 0.0800, reactance: 0.0900, cableDia: 54.2 },
+    '400': { air: 728, trench: 649, duct: 554, resistance_90C: 0.0640, reactance: 0.0900, cableDia: 61.8 }
   },
 
-  // Al 3-core XLPE cable, 90°C, in air (touching)
-  aluminum_3core_XLPE_90C_air: {
-    10: 46,
-    16: 61,
-    25: 84,
-    35: 110,
-    50: 137,
-    70: 170,
-    95: 210,
-    120: 245,
-    150: 285,
-    185: 330,
-    240: 405,
-    300: 490,
-    400: 600,
-    500: 710,
-    630: 850
+  // 4-core cables (600/1100V XLPE @ 90°C)
+  '4C': {
+    '2.5': { air: 33, trench: 33, duct: 33, resistance_90C: 9.450, reactance: 0.1070, cableDia: 13.6 },
+    '4': { air: 45, trench: 45, duct: 44, resistance_90C: 5.880, reactance: 0.0930, cableDia: 14.8 },
+    '6': { air: 56, trench: 56, duct: 54, resistance_90C: 3.930, reactance: 0.0890, cableDia: 16.2 },
+    '10': { air: 78, trench: 78, duct: 73, resistance_90C: 2.330, reactance: 0.0840, cableDia: 17.9 },
+    '16': { air: 101, trench: 101, duct: 94, resistance_90C: 1.470, reactance: 0.0810, cableDia: 20.6 },
+    '25': { air: 133, trench: 148, duct: 121, resistance_90C: 0.927, reactance: 0.0810, cableDia: 22.0 },
+    '35': { air: 163, trench: 177, duct: 145, resistance_90C: 0.668, reactance: 0.0790, cableDia: 25.4 },
+    '50': { air: 199, trench: 211, duct: 172, resistance_90C: 0.494, reactance: 0.0750, cableDia: 28.3 },
+    '70': { air: 250, trench: 259, duct: 211, resistance_90C: 0.342, reactance: 0.0740, cableDia: 32.1 },
+    '95': { air: 309, trench: 310, duct: 255, resistance_90C: 0.247, reactance: 0.0730, cableDia: 36.3 },
+    '120': { air: 357, trench: 353, duct: 292, resistance_90C: 0.197, reactance: 0.0720, cableDia: 39.7 },
+    '150': { air: 409, trench: 394, duct: 329, resistance_90C: 0.160, reactance: 0.0720, cableDia: 44.8 },
+    '185': { air: 471, trench: 445, duct: 372, resistance_90C: 0.128, reactance: 0.0720, cableDia: 49.7 },
+    '240': { air: 556, trench: 514, duct: 429, resistance_90C: 0.0986, reactance: 0.0920, cableDia: 54.8 },
+    '300': { air: 633, trench: 575, duct: 483, resistance_90C: 0.0800, reactance: 0.0900, cableDia: 60.6 },
+    '400': { air: 728, trench: 649, duct: 554, resistance_90C: 0.0640, reactance: 0.0900, cableDia: 67.8 }
   },
 
-  // Cu 4-core cable (3-phase + neutral), XLPE, 90°C, in air
-  copper_4core_XLPE_90C_air: {
-    1: 13,
-    1.5: 18,
-    2.5: 25,
-    4: 33,
-    6: 43,
-    10: 61,
-    16: 80,
-    25: 110,
-    35: 145,
-    50: 180,
-    70: 225,
-    95: 275,
-    120: 320,
-    150: 370,
-    185: 430,
-    240: 530,
-    300: 640
+  // Single-core cables (600/1100V XLPE @ 90°C) - for higher power
+  '1C': {
+    '120': { air: 400, trench: 375, duct: 356, resistance_90C: 0.1970, reactance: 0.0970, cableDia: 19.6 },
+    '150': { air: 460, trench: 419, duct: 385, resistance_90C: 0.1600, reactance: 0.0970, cableDia: 21.6 },
+    '185': { air: 528, trench: 471, duct: 425, resistance_90C: 0.1280, reactance: 0.0960, cableDia: 23.6 },
+    '240': { air: 622, trench: 542, duct: 476, resistance_90C: 0.0986, reactance: 0.0920, cableDia: 26.5 },
+    '300': { air: 709, trench: 606, duct: 519, resistance_90C: 0.0800, reactance: 0.0900, cableDia: 28.9 },
+    '400': { air: 810, trench: 671, duct: 551, resistance_90C: 0.0640, reactance: 0.0900, cableDia: 32.4 },
+    '500': { air: 916, trench: 744, duct: 598, resistance_90C: 0.0525, reactance: 0.0890, cableDia: 36.0 },
+    '630': { air: 1032, trench: 817, duct: 645, resistance_90C: 0.0428, reactance: 0.0860, cableDia: 42.4 }
   }
 };
 
 /**
- * SECTION 3: DERATING FACTORS
- * These are MULTIPLICATIVE factors to reduce cable rating
- * Final capacity = Catalog rating × Ktotal
- * Where: Ktotal = K_temp × K_group × K_soil × K_depth
+ * SECTION 3: DERATING FACTORS (Catalog-based from real project data)
+ * Format: K = K1(temp) × K2(grouping) × K3(ground temp) × K4(depth) × K5(thermal)
+ * Reference: XLPE cable at 55°C ambient, buried 1200mm, soil resistivity 1.2 °C.m/W
  */
 
 export const DeratingTables = {
-  // Temperature derating for XLPE (90°C max operating temp)
-  // For different ambient temperatures
-  temperature_factor_XLPE: {
-    20: 1.00,
-    25: 0.98,
-    30: 0.96,
-    35: 0.94,
-    40: 0.91,
-    45: 0.87,
-    50: 0.82,
-    55: 0.76,
-    60: 0.69
+  // Temperature derating factor K1 (55°C ambient reference)
+  temperature_factor: {
+    air: { multi: 0.90, single: 0.76 },
+    trench: { multi: 0.90, single: 0.76 },
+    duct: { multi: 0.80, single: 0.67 }
   },
 
-  // Temperature derating for PVC (70°C max operating temp)
-  temperature_factor_PVC: {
-    20: 1.00,
-    25: 0.97,
-    30: 0.94,
-    35: 0.90,
-    40: 0.85,
-    45: 0.79,
-    50: 0.71,
-    55: 0.61
-  },
-
-  // Grouping factor - number of loaded circuits
-  // For cables in air (tray/ladder/conduit)
-  grouping_factor_air: {
-    1: 1.00, // Single cable, no grouping
+  // Grouping factor K2 (for multiple cables - default 1 for single feeder)
+  grouping_factor: {
+    1: 1.00, // Single cable
     2: 0.95,
     3: 0.90,
     4: 0.85,
-    5: 0.82,
-    6: 0.80,
-    9: 0.75,
-    12: 0.71
+    6: 0.80
   },
 
-  // Grouping factor - for buried cables
-  grouping_factor_buried: {
-    1: 1.00,
-    2: 0.88,
-    3: 0.82,
-    4: 0.77,
-    5: 0.75,
-    6: 0.73
+  // Ground temperature factor K3 (35°C reference)
+  ground_temp_factor: {
+    single: 0.96,
+    multi: 0.91
   },
 
-  // Soil thermal resistivity factor (for buried cables)
-  // Typical: 1.2 K·m/W (dry soil)
-  soil_resistivity_factor: {
-    0.5: 1.35, // Very moist/conductive
-    0.8: 1.15, // Damp soil
-    1.0: 1.05, // Average moist
-    1.2: 1.00, // Standard reference
-    1.5: 0.93, // Dry soil
-    2.0: 0.82, // Very dry soil
-    2.5: 0.71
-  },
-
-  // Depth of laying factor (for buried cables, cm)
+  // Depth of laying factor K4 (1200mm reference)
   depth_factor: {
-    30: 1.10, // 30cm deep
-    50: 1.03,
-    60: 1.00, // Reference depth
-    70: 0.97,
-    90: 0.93,
-    100: 0.91
+    single: 1.00,
+    multi: 1.00
+  },
+
+  // Thermal resistivity factor K5 (1.2 °C.m/W reference)
+  thermal_resistivity_factor: {
+    single: 1.00,
+    multi: 1.00
   }
 };
 

@@ -5,7 +5,7 @@ import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { usePathContext } from '../context/PathContext';
 import { CableSegment } from '../utils/pathDiscoveryService';
-import CableSizingEngine, { CableSizingInput } from '../utils/CableSizingEngine';
+import CableSizingEngine_V2, { CableSizingInput as CableSizingInputV2 } from '../utils/CableSizingEngine_V2';
 import { LoadTypeSpecs } from '../utils/CableEngineeringData';
 
 // Result type for display - maps engine output to UI fields
@@ -23,7 +23,7 @@ interface CableSizingResult {
   efficiency: number;
   deratingFactor: number;
   conductorMaterial: 'Cu' | 'Al';
-  numberOfCores: string;
+  numberOfCores: '1C' | '2C' | '3C' | '4C';
   
   // Calculated values
   fullLoadCurrent: number;
@@ -37,12 +37,13 @@ interface CableSizingResult {
   sizeByCurrent: number;
   sizeByVoltageDrop: number;
   sizeByShortCircuit: number;
-  suitableCableSize: number;
-  cableSizeSQMM: number;
+  suitableCableSize: number; // Final selected conductor area (mm²)
   numberOfRuns: number;
   
   // Results
   cableDesignation: string;
+  drivingConstraint: 'Ampacity' | 'VoltageDrop' | 'ISc'; // Which constraint drove selection
+  catalogRating: number; // Current rating from catalog
   shortCircuitCurrent?: number;
   breakerSize?: string;
   status: 'APPROVED' | 'WARNING' | 'FAILED';
@@ -75,7 +76,7 @@ const detectAnomalies = (
   }
 
   // if final size is unrealistically small for a loaded feeder
-  if (result.cableSizeSQMM <= 2 && result.loadKW > 0) {
+  if (result.suitableCableSize <= 2 && result.loadKW > 0) {
     issues.push('Selected conductor area too small for load');
   }
 
@@ -98,32 +99,38 @@ const calculateCableSizing = (cable: CableSegment): CableSizingResult => {
     const loadType = (cable.loadType || 'Motor') as keyof typeof LoadTypeSpecs;
     const specs = LoadTypeSpecs[loadType] || LoadTypeSpecs.Motor;
     
-    const engineInput: CableSizingInput = {
+    const engineInput: CableSizingInputV2 = {
       loadType,
       ratedPowerKW: cable.loadKW || 0.1,
       voltage: cable.voltage,
       phase: cable.phase || '3Ø',
-      frequency: 50,
       efficiency: cable.efficiency || specs.typicalEfficiency || 0.95,
       powerFactor: cable.powerFactor || specs.typicalPowerFactor || 0.85,
-      startingMethod: (cable.startingMethod || (specs as any).typicalStartingMethod || 'DOL') as any,
       conductorMaterial: cable.conductorMaterial || 'Cu',
       insulation: cable.insulation || 'XLPE',
-      numberOfCores: (typeof cable.numberOfCores === 'string' ? cable.numberOfCores : '3C+E') as any,
-      installationMethod: cable.installationMethod || 'Air - Ladder tray (touching)',
-      cableSpacing: (cable.cableSpacing || 'touching') as any,
+      numberOfCores: (typeof cable.numberOfCores === 'string' ? cable.numberOfCores : '3C') as '1C' | '2C' | '3C' | '4C',
+      installationMethod: (['Air', 'Trench', 'Duct'].includes(cable.installationMethod || 'Air') 
+        ? cable.installationMethod 
+        : 'Air') as 'Air' | 'Trench' | 'Duct',
       cableLength: cable.length || 0,
       ambientTemp: cable.ambientTemp || 40,
-      soilThermalResistivity: cable.soilThermalResistivity || 1.2,
-      depthOfLaying: cable.depthOfLaying || 60,
-      groupedLoadedCircuits: cable.groupedLoadedCircuits || 1,
-      protectionClearingTime: 0.1,
-      maxShortCircuitCurrent: cable.maxShortCircuitCurrent || 15
+      // ISc check only if protection type is 'ACB'
+      protectionType: cable.protectionType || 'None',
+      maxShortCircuitCurrent: cable.maxShortCircuitCurrent
     };
 
-    // Run industrial sizing engine
-    const engine = new CableSizingEngine();
+    // Run simplified sizing engine (V2: direct catalog lookup, no parallel runs)
+    const engine = new CableSizingEngine_V2();
     const engineResult = engine.sizeCable(engineInput);
+
+    // Calculate FLC for display
+    const voltage = cable.voltage;
+    const phaseCount = cable.phase === '1Ø' ? 1 : 3;
+    const efficiency = engineInput.efficiency || 0.95;
+    const powerFactor = engineInput.powerFactor || 0.85;
+    const flc = phaseCount === 1 
+      ? (engineInput.ratedPowerKW * 1000) / (voltage * powerFactor * efficiency)
+      : (engineInput.ratedPowerKW * 1000) / (Math.sqrt(3) * voltage * powerFactor * efficiency);
 
     // Map result to display format
     const result: CableSizingResult = {
@@ -135,26 +142,27 @@ const calculateCableSizing = (cable: CableSegment): CableSizingResult => {
       voltage: cable.voltage,
       length: cable.length || 0,
       loadKW: cable.loadKW || 0,
-      powerFactor: engineInput.powerFactor,
-      efficiency: engineInput.efficiency,
-      deratingFactor: engineResult.deratingFactors.total,
+      powerFactor: efficiency,
+      efficiency: powerFactor,
+      deratingFactor: engineResult.deratingFactor,
       conductorMaterial: engineInput.conductorMaterial as 'Cu' | 'Al',
-      numberOfCores: engineInput.numberOfCores as string,
-      fullLoadCurrent: engineResult.fullLoadCurrent,
-      startingCurrent: engineResult.startingCurrent || undefined,
-      deratedCurrent: engineResult.fullLoadCurrent * engineResult.deratingFactors.total,
-      cableResistance: 0.193,
-      voltageDrop: engineResult.voltageDropRunning_voltage || 0,
-      voltageDropPercent: engineResult.voltageDropRunning_percent || 0,
-      sizeByCurrent: engineResult.sizeByAmpacity || 0,
-      sizeByVoltageDrop: engineResult.sizeByVoltageDropRunning || 0,
-      sizeByShortCircuit: engineResult.sizeByShortCircuit || 0,
-      suitableCableSize: engineResult.selectedSize,
-      cableSizeSQMM: engineResult.selectedSize,
-      numberOfRuns: engineResult.numberOfRuns,
-      cableDesignation: `${engineResult.numberOfRuns}×${engineResult.sizePerRun}mm² (${engineInput.conductorMaterial} ${engineInput.insulation})`,
-      shortCircuitCurrent: (engineResult.maxAllowableShortCircuit || 0) * 1000,
-      breakerSize: `${Math.ceil(engineResult.fullLoadCurrent / 10) * 10}A`,
+      numberOfCores: engineInput.numberOfCores,
+      fullLoadCurrent: flc,
+      startingCurrent: undefined,
+      deratedCurrent: flc * engineResult.deratingFactor, // Apply derating
+      cableResistance: 0, // Not available in V2
+      voltageDrop: engineResult.voltageDropVolt || 0,
+      voltageDropPercent: engineResult.voltageDropPercent || 0,
+      sizeByCurrent: engineResult.sizeByAmpacity,
+      sizeByVoltageDrop: engineResult.sizeByVoltageDrop,
+      sizeByShortCircuit: engineResult.sizeByISc || 0,
+      suitableCableSize: engineResult.selectedConductorArea,
+      numberOfRuns: 1, // V2 doesn't use parallel runs
+      cableDesignation: engineResult.cableDesignation,
+      drivingConstraint: engineResult.drivingConstraint || 'Ampacity',
+      catalogRating: engineResult.catalogRating,
+      shortCircuitCurrent: (engineResult.installedRating || 0) * 1000, // Use installed rating as proxy
+      breakerSize: `${Math.ceil(flc / 10) * 10}A`,
       status: engineResult.status,
       warnings: engineResult.warnings,
       anomalies: engineResult.warnings
@@ -181,7 +189,7 @@ const calculateCableSizing = (cable: CableSegment): CableSizingResult => {
       efficiency: 0.95,
       deratingFactor: 0.87,
       conductorMaterial: cable.conductorMaterial || 'Cu',
-      numberOfCores: '3C+E',
+      numberOfCores: '3C',
       fullLoadCurrent: 0,
       deratedCurrent: 0,
       cableResistance: 0,
@@ -191,9 +199,10 @@ const calculateCableSizing = (cable: CableSegment): CableSizingResult => {
       sizeByVoltageDrop: 0,
       sizeByShortCircuit: 0,
       suitableCableSize: 0,
-      cableSizeSQMM: 0,
       numberOfRuns: 1,
       cableDesignation: 'ERROR',
+      drivingConstraint: 'Ampacity',
+      catalogRating: 0,
       status: 'FAILED',
       anomalies: ['Cable sizing calculation failed']
     };
@@ -300,7 +309,6 @@ const ResultsTab = () => {
       'Length (m)': r.length.toFixed(2),
       'PF': r.powerFactor.toFixed(2),
       'Efficiency (%)': (r.efficiency * 100).toFixed(1),
-      'Derating': r.deratingFactor.toFixed(2),
       'FLC (A)': r.fullLoadCurrent.toFixed(2),
       'Derated Current (A)': r.deratedCurrent.toFixed(2),
       'Cable Resistance (Ω/km)': r.cableResistance.toFixed(4),
@@ -312,10 +320,10 @@ const ResultsTab = () => {
       'Suitable Cable Size (mm²)': r.suitableCableSize,
       'Number of Cores': r.numberOfCores,
       'Conductor Material': r.conductorMaterial,
-      'Number of Runs': r.numberOfRuns,
-      'Final Cable Size (mm²)': r.cableSizeSQMM,
       'Cable Designation': r.cableDesignation,
-      'Isc (kA)': (r.shortCircuitCurrent || 0 / 1000).toFixed(1),
+      'Catalog Rating (A)': r.catalogRating,
+      'Driving Constraint': r.drivingConstraint,
+      'Isc (kA)': ((r.shortCircuitCurrent || 0) / 1000).toFixed(1),
       'Breaker': r.breakerSize,
       'Status': r.status.toUpperCase(),
     }));

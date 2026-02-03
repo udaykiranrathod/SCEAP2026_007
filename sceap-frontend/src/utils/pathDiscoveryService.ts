@@ -46,7 +46,9 @@ export interface CableSegment {
   soilThermalResistivity?: number; // K·m/W for buried cables
   depthOfLaying?: number; // cm for buried cables
   groupedLoadedCircuits?: number; // Number of other loaded circuits nearby
-  maxShortCircuitCurrent?: number; // kA at installation point
+  // NEW: ISc sizing only when feeding ACB
+  protectionType?: 'ACB' | 'MCCB' | 'MCB' | 'None'; // ISc check only for ACB
+  maxShortCircuitCurrent?: number; // kA, for ISc check
 }
 
 export interface PathAnalysisResult {
@@ -92,17 +94,26 @@ export const normalizeFeeders = (rawFeeders: any[]): CableSegment[] => {
         conductorMaterial: (feeder['Material'] || feeder['conductorMaterial'] || 'Cu').toUpperCase() === 'AL' ? 'Al' : 'Cu',
         phase: feeder['Phase'] || feeder['systemPhase'] || (Number(feeder['Voltage (V)'] || 415) >= 400 ? '3Ø' : '1Ø'),
         loadType: (feeder['Load Type'] || feeder['loadType'] || 'Motor') as any,
-        efficiency: Number(feeder['Efficiency'] || feeder['efficiency'] || 0.92),
-        powerFactor: Number(feeder['Power Factor'] || feeder['powerFactor'] || 0.85),
+        // Handle percent-formatted efficiency (e.g., 92 for 92%)
+        efficiency: (() => { const v = Number(feeder['Efficiency'] || feeder['efficiency'] || 0.92); return v > 1 ? v/100 : v; })(),
+        powerFactor: (() => { const v = Number(feeder['Power Factor'] || feeder['powerFactor'] || 0.85); return v > 1 ? v/100 : v; })(),
         startingMethod: (feeder['Starting Method'] || feeder['startingMethod'] || 'DOL') as any,
         insulation: (feeder['Insulation'] || feeder['insulation'] || 'XLPE') as any,
-        installationMethod: feeder['Installation Method'] || feeder['installationMethod'] || 'Air - Ladder tray (touching)',
+        installationMethod: feeder['Installation Method'] || feeder['installationMethod'] || 'Air',
         cableSpacing: (feeder['Cable Spacing'] || feeder['cableSpacing'] || 'touching') as any,
-        ambientTemp: Number(feeder['Ambient Temp (°C)'] || feeder['ambientTemp'] || 40),
+        ambientTemp: Number(feeder['Ambient Temp (°C)'] || feeder['Ambient Temp'] || feeder['ambientTemp'] || 40),
         soilThermalResistivity: Number(feeder['Soil Thermal Resistivity (K·m/W)'] || feeder['soilThermalResistivity'] || 1.2),
         depthOfLaying: Number(feeder['Depth of Laying (cm)'] || feeder['depthOfLaying'] || 60),
         groupedLoadedCircuits: Number(feeder['Grouped Loaded Circuits'] || feeder['groupedLoadedCircuits'] || 1),
-        maxShortCircuitCurrent: Number(feeder['Max SC Current (kA)'] || feeder['maxShortCircuitCurrent'] || 15)
+        // If no SC value provided in sheet, leave undefined so engine skips SC check
+        maxShortCircuitCurrent: (() => {
+          const raw = feeder['Max SC Current (kA)'] ?? feeder['maxShortCircuitCurrent'] ?? feeder['Short Circuit (kA)'];
+          if (raw === undefined || raw === null || raw === '') return undefined;
+          const n = Number(raw);
+          return Number.isFinite(n) ? n : undefined;
+        })(),
+        // NEW: Protection type determines if ISc check is applied (ISc only for ACB)
+        protectionType: (feeder['Protection Type'] || feeder['protectionType'] || 'None') as 'ACB' | 'MCCB' | 'MCB' | 'None'
       };
     });
 };
