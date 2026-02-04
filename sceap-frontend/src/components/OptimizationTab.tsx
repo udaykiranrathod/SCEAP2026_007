@@ -114,36 +114,67 @@ const OptimizationTab = () => {
               </div>
             </div>
 
-            {/* Path Chain Visualization */}
+            {/* Path Chain Visualization - COMPLETE HIERARCHICAL SEQUENCE */}
             <div className="mb-4 p-4 bg-slate-900/50 rounded overflow-x-auto">
-              <div className="flex items-center gap-2 whitespace-nowrap text-xs">
-                {/* Start Equipment */}
-                <div className="px-3 py-1 bg-green-900/50 border border-green-500 rounded text-white font-medium min-w-max">
-                  <div>{path.startEquipment}</div>
-                  <div className="text-slate-300 text-xs">{path.startEquipmentDescription}</div>
+              <div className="flex items-center gap-1 whitespace-nowrap text-xs">
+                {/* Start Equipment / Load */}
+                <div className="px-3 py-2 bg-green-900/60 border-2 border-green-400 rounded-lg text-white font-bold min-w-max shadow-lg">
+                  <div className="text-sm">🔌 {path.startEquipment}</div>
+                  <div className="text-slate-200 text-xs mt-0.5">{path.startEquipmentDescription || 'Load'}</div>
                 </div>
                 
-                {/* Cable chain path */}
-                {path.cables.map((cable, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <ArrowRight className="text-cyan-400 flex-shrink-0" size={16} />
-                    <div className="px-3 py-1 bg-blue-900/50 border border-blue-500 rounded text-white min-w-max">
-                      <div className="font-medium">{cable.toBus}</div>
-                      <div className="text-slate-300 text-xs">{cable.cableNumber}</div>
+                {/* Complete cable chain with all intermediate stops */}
+                {path.cables && path.cables.length > 0 ? (
+                  <>
+                    {path.cables.map((cable, idx) => (
+                      <div key={idx} className="flex items-center gap-1">
+                        {/* Arrow */}
+                        <div className="flex flex-col items-center justify-center px-2">
+                          <ArrowRight className="text-cyan-400 flex-shrink-0" size={18} />
+                          <span className="text-cyan-300 text-xs font-bold mt-1 whitespace-nowrap">{cable.cableNumber}</span>
+                          <span className="text-slate-400 text-xs">({cable.length.toFixed(1)}m)</span>
+                        </div>
+                        
+                        {/* Intermediate Bus/Panel */}
+                        <div className={`px-3 py-2 rounded-lg text-white min-w-max border-2 font-semibold shadow-lg ${
+                          idx === path.cables.length - 1 
+                            ? 'bg-purple-900/60 border-purple-400' 
+                            : 'bg-blue-900/60 border-blue-400'
+                        }`}>
+                          <div className="text-sm">{cable.toBus}</div>
+                          {cable.feederDescription && (
+                            <div className="text-slate-200 text-xs mt-0.5">{cable.feederDescription}</div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    
+                    {/* Transformer endpoint */}
+                    <div className="flex items-center gap-1">
+                      <div className="flex flex-col items-center justify-center px-2">
+                        <ArrowRight className="text-red-400 flex-shrink-0" size={18} />
+                        <span className="text-red-300 text-xs font-bold mt-1">FINAL</span>
+                      </div>
+                      <div className="px-3 py-2 bg-red-900/60 border-2 border-red-400 rounded-lg text-white font-bold min-w-max shadow-lg">
+                        <div className="text-sm">⚡ {path.endTransformer}</div>
+                        <div className="text-slate-200 text-xs mt-0.5">Power Source</div>
+                      </div>
                     </div>
-                  </div>
-                ))}
-                
-                {/* Transformer endpoint - only show once */}
-                {path.cables.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <ArrowRight className="text-cyan-400 flex-shrink-0" size={16} />
-                    <div className="px-3 py-1 bg-red-900/50 border border-red-500 rounded text-white font-medium min-w-max">
-                      {path.endTransformer}
-                    </div>
-                  </div>
+                  </>
+                ) : (
+                  <div className="text-slate-400 italic">No cable path found</div>
                 )}
               </div>
+              
+              {/* COMPLETE PATH SUMMARY - Show order of hierarchy */}
+              {path.cables && path.cables.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-slate-600 text-xs text-slate-300">
+                  <span className="font-bold text-cyan-300">Complete Sequence: </span>
+                  {path.startEquipment} 
+                  {path.cables.map(c => ` → ${c.toBus}`).join('')}
+                  {` → ${path.endTransformer}`}
+                </div>
+              )}
             </div>
 
             {/* Path Summary Stats */}

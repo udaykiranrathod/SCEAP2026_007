@@ -1113,6 +1113,127 @@ const SizingTab = () => {
           </table>
         </div>
       </div>
+
+      {/* DERATING FACTORS SECTION */}
+      <div className="bg-slate-800 rounded-lg p-6 border border-slate-700 mt-6">
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold text-white flex items-center">
+            <span className="text-yellow-400 text-2xl mr-2">⚡</span>
+            Derating Factors (IEC 60287)
+          </h3>
+          <p className="text-xs text-slate-400 mt-1">Ampacity correction factors for installation method, ambient conditions, and cable grouping</p>
+        </div>
+
+        {/* Derating Factors Grid - by Installation Method */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          {/* Installation Method */}
+          <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600">
+            <h4 className="text-sm font-bold text-cyan-300 mb-3 flex items-center">
+              <span className="text-base mr-2">📍</span>Installation Method
+            </h4>
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between items-center p-2 bg-slate-800 rounded border-l-2 border-green-400">
+                <span className="text-slate-300">Air (Tray/Cleat)</span>
+                <span className="text-green-400 font-bold">1.00</span>
+              </div>
+              <div className="flex justify-between items-center p-2 bg-slate-800 rounded border-l-2 border-blue-400">
+                <span className="text-slate-300">Duct (Conduit)</span>
+                <span className="text-blue-400 font-bold">0.95</span>
+              </div>
+              <div className="flex justify-between items-center p-2 bg-slate-800 rounded border-l-2 border-orange-400">
+                <span className="text-slate-300">Trench (Ground)</span>
+                <span className="text-orange-400 font-bold">0.90</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Cable Grouping */}
+          <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600">
+            <h4 className="text-sm font-bold text-purple-300 mb-3 flex items-center">
+              <span className="text-base mr-2">📦</span>Cable Grouping
+            </h4>
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between items-center p-2 bg-slate-800 rounded border-l-2 border-green-400">
+                <span className="text-slate-300">1 Circuit (Single)</span>
+                <span className="text-green-400 font-bold">1.00</span>
+              </div>
+              <div className="flex justify-between items-center p-2 bg-slate-800 rounded border-l-2 border-yellow-400">
+                <span className="text-slate-300">2 Circuits</span>
+                <span className="text-yellow-400 font-bold">0.90</span>
+              </div>
+              <div className="flex justify-between items-center p-2 bg-slate-800 rounded border-l-2 border-orange-400">
+                <span className="text-slate-300">3-4 Circuits</span>
+                <span className="text-orange-400 font-bold">0.75-0.80</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Soil Thermal Resistivity */}
+          <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600">
+            <h4 className="text-sm font-bold text-teal-300 mb-3 flex items-center">
+              <span className="text-base mr-2">🌍</span>Soil Thermal
+            </h4>
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between items-center p-2 bg-slate-800 rounded border-l-2 border-green-400">
+                <span className="text-slate-300">&lt;1 K·m/W</span>
+                <span className="text-green-400 font-bold">1.00</span>
+              </div>
+              <div className="flex justify-between items-center p-2 bg-slate-800 rounded border-l-2 border-yellow-400">
+                <span className="text-slate-300">1-2 K·m/W</span>
+                <span className="text-yellow-400 font-bold">0.90</span>
+              </div>
+              <div className="flex justify-between items-center p-2 bg-slate-800 rounded border-l-2 border-red-400">
+                <span className="text-slate-300">&gt;2 K·m/W</span>
+                <span className="text-red-400 font-bold">0.80</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Depth of Laying */}
+          <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600">
+            <h4 className="text-sm font-bold text-indigo-300 mb-3 flex items-center">
+              <span className="text-base mr-2">📐</span>Depth of Laying
+            </h4>
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between items-center p-2 bg-slate-800 rounded border-l-2 border-green-400">
+                <span className="text-slate-300">0.5 m</span>
+                <span className="text-green-400 font-bold">1.00</span>
+              </div>
+              <div className="flex justify-between items-center p-2 bg-slate-800 rounded border-l-2 border-yellow-400">
+                <span className="text-slate-300">1.0 m</span>
+                <span className="text-yellow-400 font-bold">0.96</span>
+              </div>
+              <div className="flex justify-between items-center p-2 bg-slate-800 rounded border-l-2 border-orange-400">
+                <span className="text-slate-300">1.5 m</span>
+                <span className="text-orange-400 font-bold">0.93</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Combined Derating Example */}
+        <div className="bg-slate-900/50 rounded-lg p-4 border border-yellow-600/50">
+          <h4 className="text-sm font-bold text-yellow-300 mb-3">Combined Derating Factor Calculation</h4>
+          <p className="text-xs text-slate-300 mb-3">
+            Total derating factor (K_tot) = K_installation × K_grouping × K_soil_thermal × K_depth
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+            <div className="bg-slate-800 rounded p-3 border-l-2 border-green-400">
+              <p className="text-slate-300 mb-1"><strong>Example 1: Air Installation</strong></p>
+              <p className="text-slate-400">1.0 (Air) × 1.0 (Single) × 1.0 (Good soil) × 1.0 (0.5m) = <span className="text-green-400 font-bold">1.00</span></p>
+            </div>
+            <div className="bg-slate-800 rounded p-3 border-l-2 border-orange-400">
+              <p className="text-slate-300 mb-1"><strong>Example 2: Underground Trench</strong></p>
+              <p className="text-slate-400">0.9 (Trench) × 0.75 (4 cables) × 0.9 (Medium) × 0.93 (1.5m) = <span className="text-orange-400 font-bold">0.567</span></p>
+            </div>
+          </div>
+        </div>
+
+        {/* Reference Note */}
+        <div className="mt-4 p-3 bg-blue-900/20 border border-blue-600 rounded text-xs text-blue-300">
+          <strong>📖 Standard Reference:</strong> These factors are as per IEC 60287 and are applied in the cable sizing engine to calculate derated ampacity for your specific installation conditions.
+        </div>
+      </div>
     </div>
   );
 };

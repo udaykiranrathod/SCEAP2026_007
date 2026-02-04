@@ -592,81 +592,82 @@ const ResultsTab = () => {
         </div>
       </div>
 
-      {/* Results Table - 6 SECTION STRUCTURE PER REAL PROJECT SPEC */}
+      {/* Results Table - PROPER COLUMN ORDER WITH DERATING FIRST */}
       <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
         <div className="overflow-x-auto overflow-y-auto results-table-scroll" style={{ height: '1200px' }}>
-          <table className="w-full min-w-[3200px] text-xs border-collapse">
-            <thead className="bg-slate-700 sticky top-0 border-b-2 border-slate-600">
+          <table className="w-full min-w-[4000px] text-xs border-collapse">
+            <thead className="bg-slate-700 sticky top-0 border-b border-slate-600">
               <tr>
-                {/* Identity columns */}
-                <th className="px-2 py-2 text-left text-slate-200 font-bold bg-slate-750" rowSpan={2}>S.No</th>
-                <th className="px-2 py-2 text-left text-slate-200 font-bold bg-slate-750" rowSpan={2}>Cable #</th>
-                <th className="px-2 py-2 text-left text-slate-200 font-bold bg-slate-750" rowSpan={2}>Description</th>
-                <th className="px-2 py-2 text-center text-slate-200 font-bold bg-slate-750" rowSpan={2}>From Bus</th>
-                <th className="px-2 py-2 text-center text-slate-200 font-bold bg-slate-750" rowSpan={2}>To Bus</th>
-                <th className="px-2 py-2 text-center text-slate-200 font-bold bg-slate-750" rowSpan={2}>V(V)</th>
-                <th className="px-2 py-2 text-center text-slate-200 font-bold bg-slate-750" rowSpan={2}>Load(kW)</th>
-                <th className="px-2 py-2 text-center text-slate-200 font-bold bg-slate-750" rowSpan={2}>L(m)</th>
+                {/* Identity columns - subtle background */}
+                <th className="px-2 py-2 text-left text-slate-200 font-bold" rowSpan={2}>S.No</th>
+                <th className="px-2 py-2 text-left text-slate-200 font-bold" rowSpan={2}>Cable #</th>
+                <th className="px-2 py-2 text-left text-slate-200 font-bold" rowSpan={2}>Description</th>
+                <th className="px-2 py-2 text-center text-slate-200 font-bold" rowSpan={2}>From Bus</th>
+                <th className="px-2 py-2 text-center text-slate-200 font-bold" rowSpan={2}>To Bus</th>
+                <th className="px-2 py-2 text-center text-slate-200 font-bold" rowSpan={2}>V(V)</th>
+                <th className="px-2 py-2 text-center text-slate-200 font-bold" rowSpan={2}>Load(kW)</th>
+                <th className="px-2 py-2 text-center text-slate-200 font-bold" rowSpan={2}>L(m)</th>
                 
-                {/* Section 1: Cable Size Based on Full Load Current */}
-                <th colSpan={3} className="px-3 py-2 text-center text-white font-bold bg-blue-900 border-l border-slate-600">1. Size by FLC</th>
+                {/* Section 1: FLC Sizing */}
+                <th colSpan={3} className="px-2 py-2 text-center text-white font-bold border-l border-slate-500">1. FLC Sizing</th>
                 
-                {/* Section 2: Cable Size Based on Short Circuit Current */}
-                <th colSpan={2} className="px-3 py-2 text-center text-white font-bold bg-red-900 border-l border-slate-600">2. Size by Isc</th>
+                {/* DERATING FACTORS - MOVED HERE FIRST */}
+                <th colSpan={5} className="px-2 py-2 text-center text-slate-900 font-bold bg-yellow-400 border-l border-slate-500">Derating Factors (IEC)</th>
                 
-                {/* Section 3: Selected Cable Size  */}
-                <th colSpan={2} className="px-3 py-2 text-center text-white font-bold bg-green-900 border-l border-slate-600">3. Selected Size</th>
+                {/* Cable Sizes by Constraints */}
+                <th colSpan={3} className="px-2 py-2 text-center text-white font-bold bg-slate-600 border-l border-slate-500">Cable Sizes (mm²)</th>
                 
-                {/* Section 4: Voltage Drop Running */}
-                <th colSpan={3} className="px-3 py-2 text-center text-white font-bold bg-purple-900 border-l border-slate-600">4. V-Drop Running</th>
+                {/* Selected Cable */}
+                <th colSpan={2} className="px-2 py-2 text-center text-white font-bold border-l border-slate-500">Selected Size</th>
                 
-                {/* Section 5: Voltage Drop Starting */}
-                <th colSpan={3} className="px-3 py-2 text-center text-white font-bold bg-orange-900 border-l border-slate-600">5. V-Drop Starting</th>
+                {/* Voltage Drop Running */}
+                <th colSpan={3} className="px-2 py-2 text-center text-white font-bold border-l border-slate-500">V-Drop Running</th>
                 
-                {/* Section 6: Final Designation */}
-                <th colSpan={2} className="px-3 py-2 text-center text-white font-bold bg-cyan-900 border-l border-slate-600">6. Cable Designation</th>
+                {/* Voltage Drop Starting */}
+                <th colSpan={3} className="px-2 py-2 text-center text-white font-bold border-l border-slate-500">V-Drop Starting</th>
                 
-                {/* Derating Factors Header */}
-                <th colSpan={5} className="px-3 py-2 text-center text-white font-bold bg-slate-900 border-l border-slate-600">Derating Factors (IEC)</th>
+                {/* Designation */}
+                <th colSpan={2} className="px-2 py-2 text-center text-white font-bold border-l border-slate-500">Designation</th>
                 
-                <th className="px-2 py-2 text-center text-slate-200 font-bold bg-slate-750 border-l border-slate-600" rowSpan={2}>Status</th>
+                <th className="px-2 py-2 text-center text-slate-200 font-bold border-l border-slate-500" rowSpan={2}>Status</th>
               </tr>
               
-              {/* Sub-headers for each section */}
-              <tr className="bg-slate-650">
-                {/* Section 1 sub-headers */}
-                <th className="px-2 py-1 text-center text-slate-300 text-xs border-l border-slate-600">FLC(A)</th>
+              {/* Sub-headers */}
+              <tr className="bg-slate-650 border-b border-slate-600">
+                {/* FLC sub-headers */}
+                <th className="px-2 py-1 text-center text-slate-300 text-xs border-l border-slate-500">FLC(A)</th>
                 <th className="px-2 py-1 text-center text-slate-300 text-xs">Derated(A)</th>
                 <th className="px-2 py-1 text-center text-slate-300 text-xs">Size(mm²)</th>
                 
-                {/* Section 2 sub-headers */}
-                <th className="px-2 py-1 text-center text-slate-300 text-xs border-l border-slate-600">Isc(kA)</th>
-                <th className="px-2 py-1 text-center text-slate-300 text-xs">Size(mm²)</th>
+                {/* Derating sub-headers */}
+                <th className="px-2 py-1 text-center text-slate-900 text-xs font-bold bg-yellow-300 border-l border-slate-500">K_tot</th>
+                <th className="px-2 py-1 text-center text-slate-900 text-xs font-bold bg-yellow-300">K_t</th>
+                <th className="px-2 py-1 text-center text-slate-900 text-xs font-bold bg-yellow-300">K_g</th>
+                <th className="px-2 py-1 text-center text-slate-900 text-xs font-bold bg-yellow-300">K_s</th>
+                <th className="px-2 py-1 text-center text-slate-900 text-xs font-bold bg-yellow-300">K_d</th>
                 
-                {/* Section 3 sub-headers */}
-                <th className="px-2 py-1 text-center text-slate-300 text-xs border-l border-slate-600">Size(mm²)</th>
+                {/* Cable sizes sub-headers */}
+                <th className="px-2 py-1 text-center text-slate-300 text-xs border-l border-slate-500">By Isc</th>
+                <th className="px-2 py-1 text-center text-slate-300 text-xs">By V-Drop(Run)</th>
+                <th className="px-2 py-1 text-center text-slate-300 text-xs">By V-Drop(Start)</th>
+                
+                {/* Selected size sub-headers */}
+                <th className="px-2 py-1 text-center text-slate-300 text-xs border-l border-slate-500">Size(mm²)</th>
                 <th className="px-2 py-1 text-center text-slate-300 text-xs">Runs</th>
                 
-                {/* Section 4 sub-headers */}
-                <th className="px-2 py-1 text-center text-slate-300 text-xs border-l border-slate-600">ΔU(V)</th>
-                <th className="px-2 py-1 text-center text-slate-300 text-xs">%(allow 5%)</th>
+                {/* V-drop running sub-headers */}
+                <th className="px-2 py-1 text-center text-slate-300 text-xs border-l border-slate-500">ΔU(V)</th>
+                <th className="px-2 py-1 text-center text-slate-300 text-xs">%(≤5%)</th>
                 <th className="px-2 py-1 text-center text-slate-300 text-xs">OK?</th>
                 
-                {/* Section 5 sub-headers */}
-                <th className="px-2 py-1 text-center text-slate-300 text-xs border-l border-slate-600">ΔU(V)</th>
-                <th className="px-2 py-1 text-center text-slate-300 text-xs">%(allow 15%)</th>
+                {/* V-drop starting sub-headers */}
+                <th className="px-2 py-1 text-center text-slate-300 text-xs border-l border-slate-500">ΔU(V)</th>
+                <th className="px-2 py-1 text-center text-slate-300 text-xs">%(≤15%)</th>
                 <th className="px-2 py-1 text-center text-slate-300 text-xs">OK?</th>
                 
-                {/* Section 6 sub-headers */}
-                <th className="px-2 py-1 text-center text-slate-300 text-xs border-l border-slate-600">Designation</th>
+                {/* Designation sub-headers */}
+                <th className="px-2 py-1 text-center text-slate-300 text-xs border-l border-slate-500">Cable Des.</th>
                 <th className="px-2 py-1 text-center text-slate-300 text-xs">R(Ω/km)</th>
-                
-                {/* Derating Factors */}
-                <th className="px-2 py-1 text-center text-slate-300 text-xs border-l border-slate-600">K_tot</th>
-                <th className="px-2 py-1 text-center text-slate-300 text-xs text-xs">K_t</th>
-                <th className="px-2 py-1 text-center text-slate-300 text-xs text-xs">K_g</th>
-                <th className="px-2 py-1 text-center text-slate-300 text-xs text-xs">K_s</th>
-                <th className="px-2 py-1 text-center text-slate-300 text-xs text-xs">K_d</th>
               </tr>
             </thead>
             
@@ -674,84 +675,69 @@ const ResultsTab = () => {
               {results.map((result) => (
                 <tr
                   key={`${result.cableNumber}-${result.serialNo}`}
-                  className={`hover:bg-slate-700 transition-colors ${result.isAnomaly ? 'bg-red-950/20' : ''}`}
+                  className={`hover:bg-slate-700/50 transition-colors ${result.isAnomaly ? 'bg-red-950/20' : ''}`}
                 >
                   {/* Identity cells */}
                   <td className="px-2 py-1 text-slate-300">{result.serialNo}</td>
                   <td className="px-2 py-1 text-slate-300 font-medium">{result.cableNumber}</td>
                   <td className="px-2 py-1 text-slate-300 max-w-xs text-xs">{result.feederDescription}</td>
-                  <td className="px-2 py-1 text-cyan-300 text-xs">{result.fromBus}</td>
-                  <td className="px-2 py-1 text-cyan-300 text-xs">{result.toBus}</td>
+                  <td className="px-2 py-1 text-cyan-400 text-xs font-medium">{result.fromBus}</td>
+                  <td className="px-2 py-1 text-cyan-400 text-xs font-medium">{result.toBus}</td>
                   <td className="px-2 py-1 text-center text-slate-300">{result.voltage}</td>
                   <td className="px-2 py-1 text-center text-slate-300">{result.loadKW.toFixed(2)}</td>
                   <td className="px-2 py-1 text-center text-slate-300">{result.length.toFixed(1)}</td>
                   
-                  {/* Section 1: FLC Sizing */}
+                  {/* FLC Sizing */}
                   <td className="px-2 py-1 text-center text-slate-300 border-l border-slate-600">{result.fullLoadCurrent.toFixed(1)}</td>
                   <td className="px-2 py-1 text-center text-slate-300">{result.deratedCurrent.toFixed(1)}</td>
                   <td className="px-2 py-1 text-center font-bold text-blue-400">{result.sizeByCurrent}</td>
                   
-                  {/* Section 2: ISc Sizing */}
-                  <td className="px-2 py-1 text-center text-slate-300 border-l border-slate-600">{(result.shortCircuitCurrent_kA || 0).toFixed(1)}</td>
-                  <td className="px-2 py-1 text-center font-bold text-red-400">{result.sizeByShortCircuit}</td>
+                  {/* Derating Factors - YELLOW HIGHLIGHT */}
+                  <td className="px-2 py-1 text-center font-bold bg-yellow-500/20 border-l border-slate-600">{result.deratingFactor.toFixed(3)}</td>
+                  <td className="px-2 py-1 text-center text-sm bg-yellow-500/20">{(result.deratingComponents?.K_temp || 1).toFixed(2)}</td>
+                  <td className="px-2 py-1 text-center text-sm bg-yellow-500/20">{(result.deratingComponents?.K_group || 1).toFixed(2)}</td>
+                  <td className="px-2 py-1 text-center text-sm bg-yellow-500/20">{(result.deratingComponents?.K_soil || 1).toFixed(2)}</td>
+                  <td className="px-2 py-1 text-center text-sm bg-yellow-500/20">{(result.deratingComponents?.K_depth || 1).toFixed(2)}</td>
                   
-                  {/* Section 3: Selected Cable */}
-                  <td className="px-2 py-1 text-center font-bold text-green-400 bg-slate-700/30 border-l border-slate-600">{result.suitableCableSize}</td>
-                  <td className="px-2 py-1 text-center font-bold text-green-400 bg-slate-700/30">{result.numberOfRuns}</td>
+                  {/* Cable Sizes */}
+                  <td className="px-2 py-1 text-center text-red-400 font-medium border-l border-slate-600">{result.sizeByShortCircuit}</td>
+                  <td className="px-2 py-1 text-center text-purple-400 font-medium">{result.sizeByVoltageDrop_running}</td>
+                  <td className="px-2 py-1 text-center text-purple-400 font-medium">{(result.sizeByVoltageDrop_starting || 0)}</td>
                   
-                  {/* Section 4: Running V-Drop */}
+                  {/* Selected Size */}
+                  <td className="px-2 py-1 text-center font-bold text-green-400 bg-green-900/20 border-l border-slate-600">{result.suitableCableSize}</td>
+                  <td className="px-2 py-1 text-center font-bold text-green-400 bg-green-900/20">{result.numberOfRuns}</td>
+                  
+                  {/* V-Drop Running */}
                   <td className="px-2 py-1 text-center text-slate-300 border-l border-slate-600">{result.voltageDrop_running_volt.toFixed(2)}</td>
-                  <td
-                    className={`px-2 py-1 text-center font-bold ${
-                      result.voltageDrop_running_percent <= 5 ? 'text-green-400' : 'text-red-400'
-                    }`}
-                  >
+                  <td className={`px-2 py-1 text-center font-bold ${result.voltageDrop_running_percent <= 5 ? 'text-green-400 bg-green-900/20' : 'text-red-400 bg-red-900/20'}`}>
                     {result.voltageDrop_running_percent.toFixed(2)}
                   </td>
-                  <td className="px-2 py-1 text-center font-bold">
-                    {result.voltageDrop_running_percent <= 5 ? (
-                      <span className="text-green-400">✓</span>
-                    ) : (
-                      <span className="text-red-400">✗</span>
-                    )}
+                  <td className="px-2 py-1 text-center font-bold text-lg">
+                    {result.voltageDrop_running_percent <= 5 ? <span className="text-green-400">✓</span> : <span className="text-red-400">✗</span>}
                   </td>
                   
-                  {/* Section 5: Starting V-Drop */}
+                  {/* V-Drop Starting */}
                   <td className="px-2 py-1 text-center text-slate-300 border-l border-slate-600">{(result.voltageDrop_starting_volt || 0).toFixed(2)}</td>
-                  <td
-                    className={`px-2 py-1 text-center font-bold ${
-                      (result.voltageDrop_starting_percent || 0) <= 15 ? 'text-green-400' : 'text-red-400'
-                    }`}
-                  >
+                  <td className={`px-2 py-1 text-center font-bold ${(result.voltageDrop_starting_percent || 0) <= 15 ? 'text-green-400 bg-green-900/20' : 'text-red-400 bg-red-900/20'}`}>
                     {(result.voltageDrop_starting_percent || 0).toFixed(2)}
                   </td>
-                  <td className="px-2 py-1 text-center font-bold">
-                    {(result.voltageDrop_starting_percent || 0) <= 15 ? (
-                      <span className="text-green-400">✓</span>
-                    ) : (
-                      <span className="text-red-400">✗</span>
-                    )}
+                  <td className="px-2 py-1 text-center font-bold text-lg">
+                    {(result.voltageDrop_starting_percent || 0) <= 15 ? <span className="text-green-400">✓</span> : <span className="text-red-400">✗</span>}
                   </td>
                   
-                  {/* Section 6: Cable Designation */}
-                  <td className="px-2 py-1 text-center font-bold text-purple-300 bg-purple-900/30 border-l border-slate-600 whitespace-nowrap min-w-[200px] text-xs">{result.cableDesignation}</td>
-                  <td className="px-2 py-1 text-center text-cyan-300 text-xs">{result.cableResistance_ohm_per_km.toFixed(3)}</td>
-                  
-                  {/* Derating Factors */}
-                  <td className="px-2 py-1 text-center text-slate-300 border-l border-slate-600 text-xs font-bold text-orange-400">{result.deratingFactor.toFixed(3)}</td>
-                  <td className="px-2 py-1 text-center text-slate-300 text-xs">{(result.deratingComponents?.K_temp || 1).toFixed(2)}</td>
-                  <td className="px-2 py-1 text-center text-slate-300 text-xs">{(result.deratingComponents?.K_group || 1).toFixed(2)}</td>
-                  <td className="px-2 py-1 text-center text-slate-300 text-xs">{(result.deratingComponents?.K_soil || 1).toFixed(2)}</td>
-                  <td className="px-2 py-1 text-center text-slate-300 text-xs">{(result.deratingComponents?.K_depth || 1).toFixed(2)}</td>
+                  {/* Designation */}
+                  <td className="px-2 py-1 text-center text-purple-300 text-xs font-medium border-l border-slate-600 whitespace-nowrap min-w-[180px]">{result.cableDesignation}</td>
+                  <td className="px-2 py-1 text-center text-cyan-400 font-medium">{result.cableResistance_ohm_per_km.toFixed(3)}</td>
                   
                   {/* Status */}
                   <td className="px-2 py-1 text-center align-middle border-l border-slate-600">
                     {result.status === 'APPROVED' ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-green-500/30 text-green-300 text-xs font-bold">✓</span>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded bg-green-500/30 text-green-300 text-xs font-bold">✓</span>
                     ) : result.status === 'WARNING' ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-yellow-500/30 text-yellow-300 text-xs font-bold">⚠</span>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded bg-yellow-500/30 text-yellow-300 text-xs font-bold">⚠</span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-red-500/30 text-red-300 text-xs font-bold">✗</span>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded bg-red-500/30 text-red-300 text-xs font-bold">✗</span>
                     )}
                   </td>
                 </tr>
