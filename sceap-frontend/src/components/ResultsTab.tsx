@@ -309,24 +309,103 @@ const ResultsTab = () => {
     try {
       const raw = localStorage.getItem('results_visible_columns');
       return raw ? JSON.parse(raw) : {
-        sizeI: true,
-        sizeV: true,
-        sizeIsc: true,
-        finalSize: true,
-        runs: true,
-        designation: true,
+        // Identity columns
+        serialNo: true,
+        cableNumber: true,
+        feederDescription: true,
+        fromBus: true,
+        toBus: true,
+        
+        // Load & Rating
         breaker: true,
+        feederType: true,
+        load: true,
+        quantity: true,
+        voltage: true,
+        powerFactor: true,
+        efficiency: true,
+        
+        // Conductor & Installation
+        conductorType: true,
+        powerSupply: true,
+        installationMethod: true,
+        motorStartingCurrent: true,
+        motorStartingPF: true,
+        
+        // Cable Data
+        numberOfCores: true,
+        cableSize: true,
+        cableRating: true,
+        
+        // Derating Factors
+        deratingAmbientTemp: true,
+        deratingGrouping: true,
+        deratingGroundTemp: true,
+        deratingDepth: true,
+        deratingThermalResistivity: true,
+        deratingUnbalance: true,
+        deratingTotal: true,
+        
+        // Current Carrying
+        deredCurrent: true,
+        comparison: true,
+        
+        // Voltage Drop
+        vdropRunning: true,
+        vdropRunningPercent: true,
+        vdropAllowable: true,
+        vdropStarting: true,
+        vdropStartingPercent: true,
+        vdropStartingAllowable: true,
+        
+        // Final sizing
+        numberOfRuns: true,
+        currentPerRun: true,
+        routeLength: true,
+        designation: true,
         status: true,
       };
     } catch {
       return {
-        sizeI: true,
-        sizeV: true,
-        sizeIsc: true,
-        finalSize: true,
-        runs: true,
-        designation: true,
+        serialNo: true,
+        cableNumber: true,
+        feederDescription: true,
+        fromBus: true,
+        toBus: true,
         breaker: true,
+        feederType: true,
+        load: true,
+        quantity: true,
+        voltage: true,
+        powerFactor: true,
+        efficiency: true,
+        conductorType: true,
+        powerSupply: true,
+        installationMethod: true,
+        motorStartingCurrent: true,
+        motorStartingPF: true,
+        numberOfCores: true,
+        cableSize: true,
+        cableRating: true,
+        deratingAmbientTemp: true,
+        deratingGrouping: true,
+        deratingGroundTemp: true,
+        deratingDepth: true,
+        deratingThermalResistivity: true,
+        deratingUnbalance: true,
+        deratingTotal: true,
+        deredCurrent: true,
+        comparison: true,
+        vdropRunning: true,
+        vdropRunningPercent: true,
+        vdropAllowable: true,
+        vdropStarting: true,
+        vdropStartingPercent: true,
+        vdropStartingAllowable: true,
+        numberOfRuns: true,
+        currentPerRun: true,
+        routeLength: true,
+        designation: true,
         status: true,
       };
     }
@@ -545,18 +624,168 @@ const ResultsTab = () => {
         </div>
         {showCustomize && (
           <div className="mt-3 p-3 bg-slate-700/40 rounded border border-slate-600">
-            <div className="text-sm text-slate-200 font-medium mb-2">Customize Columns</div>
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              {Object.entries(visibleColumns).map(([key, val]) => (
-                <label key={key} className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={val}
-                    onChange={() => setVisibleColumns((prev) => ({ ...prev, [key]: !prev[key] }))}
-                  />
-                  <span className="capitalize">{key}</span>
-                </label>
-              ))}
+            <h4 className="text-white font-semibold mb-3 text-sm">Customize Visible Columns</h4>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2 text-xs">
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.serialNo} onChange={() => setVisibleColumns((p) => ({ ...p, serialNo: !p.serialNo }))} />
+                <span>Serial No</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.cableNumber} onChange={() => setVisibleColumns((p) => ({ ...p, cableNumber: !p.cableNumber }))} />
+                <span>Cable #</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.feederDescription} onChange={() => setVisibleColumns((p) => ({ ...p, feederDescription: !p.feederDescription }))} />
+                <span>Description</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.fromBus} onChange={() => setVisibleColumns((p) => ({ ...p, fromBus: !p.fromBus }))} />
+                <span>From Bus</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.toBus} onChange={() => setVisibleColumns((p) => ({ ...p, toBus: !p.toBus }))} />
+                <span>To Bus</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.breaker} onChange={() => setVisibleColumns((p) => ({ ...p, breaker: !p.breaker }))} />
+                <span>Breaker Type</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.feederType} onChange={() => setVisibleColumns((p) => ({ ...p, feederType: !p.feederType }))} />
+                <span>Feeder Type</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.load} onChange={() => setVisibleColumns((p) => ({ ...p, load: !p.load }))} />
+                <span>Load (kW)</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.quantity} onChange={() => setVisibleColumns((p) => ({ ...p, quantity: !p.quantity }))} />
+                <span>Quantity</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.voltage} onChange={() => setVisibleColumns((p) => ({ ...p, voltage: !p.voltage }))} />
+                <span>Voltage (V)</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.powerFactor} onChange={() => setVisibleColumns((p) => ({ ...p, powerFactor: !p.powerFactor }))} />
+                <span>Power Factor</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.efficiency} onChange={() => setVisibleColumns((p) => ({ ...p, efficiency: !p.efficiency }))} />
+                <span>Efficiency</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.conductorType} onChange={() => setVisibleColumns((p) => ({ ...p, conductorType: !p.conductorType }))} />
+                <span>Conductor</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.powerSupply} onChange={() => setVisibleColumns((p) => ({ ...p, powerSupply: !p.powerSupply }))} />
+                <span>Power Supply</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.installationMethod} onChange={() => setVisibleColumns((p) => ({ ...p, installationMethod: !p.installationMethod }))} />
+                <span>Installation</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.motorStartingCurrent} onChange={() => setVisibleColumns((p) => ({ ...p, motorStartingCurrent: !p.motorStartingCurrent }))} />
+                <span>Motor Start (A)</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.motorStartingPF} onChange={() => setVisibleColumns((p) => ({ ...p, motorStartingPF: !p.motorStartingPF }))} />
+                <span>Start PF</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.numberOfCores} onChange={() => setVisibleColumns((p) => ({ ...p, numberOfCores: !p.numberOfCores }))} />
+                <span>Cores</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.cableSize} onChange={() => setVisibleColumns((p) => ({ ...p, cableSize: !p.cableSize }))} />
+                <span>Cable Size</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.cableRating} onChange={() => setVisibleColumns((p) => ({ ...p, cableRating: !p.cableRating }))} />
+                <span>Cable Rating</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.deratingTotal} onChange={() => setVisibleColumns((p) => ({ ...p, deratingTotal: !p.deratingTotal }))} />
+                <span>Derating Factor</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.deratingAmbientTemp} onChange={() => setVisibleColumns((p) => ({ ...p, deratingAmbientTemp: !p.deratingAmbientTemp }))} />
+                <span>K_temp</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.deratingGrouping} onChange={() => setVisibleColumns((p) => ({ ...p, deratingGrouping: !p.deratingGrouping }))} />
+                <span>K_group</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.deratingGroundTemp} onChange={() => setVisibleColumns((p) => ({ ...p, deratingGroundTemp: !p.deratingGroundTemp }))} />
+                <span>K_temp_ground</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.deratingDepth} onChange={() => setVisibleColumns((p) => ({ ...p, deratingDepth: !p.deratingDepth }))} />
+                <span>K_depth</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.deratingThermalResistivity} onChange={() => setVisibleColumns((p) => ({ ...p, deratingThermalResistivity: !p.deratingThermalResistivity }))} />
+                <span>K_soil</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.deratingUnbalance} onChange={() => setVisibleColumns((p) => ({ ...p, deratingUnbalance: !p.deratingUnbalance }))} />
+                <span>K_unbalance</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.deredCurrent} onChange={() => setVisibleColumns((p) => ({ ...p, deredCurrent: !p.deredCurrent }))} />
+                <span>Derated Current</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.comparison} onChange={() => setVisibleColumns((p) => ({ ...p, comparison: !p.comparison }))} />
+                <span>Capacity Check</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.vdropRunning} onChange={() => setVisibleColumns((p) => ({ ...p, vdropRunning: !p.vdropRunning }))} />
+                <span>V-Drop (Run)</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.vdropRunningPercent} onChange={() => setVisibleColumns((p) => ({ ...p, vdropRunningPercent: !p.vdropRunningPercent }))} />
+                <span>V-Drop % (Run)</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.vdropAllowable} onChange={() => setVisibleColumns((p) => ({ ...p, vdropAllowable: !p.vdropAllowable }))} />
+                <span>V-Drop OK (Run)</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.vdropStarting} onChange={() => setVisibleColumns((p) => ({ ...p, vdropStarting: !p.vdropStarting }))} />
+                <span>V-Drop (Start)</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.vdropStartingPercent} onChange={() => setVisibleColumns((p) => ({ ...p, vdropStartingPercent: !p.vdropStartingPercent }))} />
+                <span>V-Drop % (Start)</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.vdropStartingAllowable} onChange={() => setVisibleColumns((p) => ({ ...p, vdropStartingAllowable: !p.vdropStartingAllowable }))} />
+                <span>V-Drop OK (Start)</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.numberOfRuns} onChange={() => setVisibleColumns((p) => ({ ...p, numberOfRuns: !p.numberOfRuns }))} />
+                <span>No. of Runs</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.currentPerRun} onChange={() => setVisibleColumns((p) => ({ ...p, currentPerRun: !p.currentPerRun }))} />
+                <span>Current/Run</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.routeLength} onChange={() => setVisibleColumns((p) => ({ ...p, routeLength: !p.routeLength }))} />
+                <span>Route Length</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.designation} onChange={() => setVisibleColumns((p) => ({ ...p, designation: !p.designation }))} />
+                <span>Cable Designation</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.status} onChange={() => setVisibleColumns((p) => ({ ...p, status: !p.status }))} />
+                <span>Status</span>
+              </label>
             </div>
           </div>
         )}
