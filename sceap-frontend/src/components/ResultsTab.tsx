@@ -79,6 +79,8 @@ interface CableSizingResult {
   numberOfRuns: number; // Number of parallel runs
   sizePerRun?: number; // Size per individual run
   currentPerRun: number; // Current per run (Ir = It / N)
+  installedRatingPerRun: number; // Catalog rating × K_total per run
+  installedRatingTotal: number; // installedRatingPerRun × numberOfRuns
   
   // Column Headers Group 8: Voltage Drop Analysis
   voltageDrop_running_volt: number;
@@ -271,7 +273,10 @@ const calculateCableSizing = (cable: CableSegment): CableSizingResult => {
       // Current calculations
       fullLoadCurrent: engineResult.fullLoadCurrent || 0,
       startingCurrent: engineResult.startingCurrent || 0,
-      deratedCurrent: engineResult.effectiveCurrentAtRun || 0,
+      // Derated current carrying capacity (total installed rating across runs)
+      deratedCurrent: engineResult.installedRatingTotal || engineResult.installedRatingPerRun || 0,
+      installedRatingPerRun: engineResult.installedRatingPerRun || 0,
+      installedRatingTotal: engineResult.installedRatingTotal || engineResult.installedRatingPerRun || 0,
       loadKW: cable.loadKW || 0,
       length: cable.length || 0,
       routeLength: cable.length || 0,
@@ -433,6 +438,8 @@ const ResultsTab = () => {
         // GROUP 5: Derating Factors (Individual subfactors)
         deratingAmbientTemp: true,
         deratingGroupingFactor: true,
+        deratingGrouping: true,
+        deratingTotal: true,
         deratingGroundTemp: false,
         deratingDepth: false,
         deratingThermalResistivity: true,
@@ -499,6 +506,8 @@ const ResultsTab = () => {
         cableRating: true,
         deratingAmbientTemp: true,
         deratingGroupingFactor: true,
+        deratingGrouping: true,
+        deratingTotal: true,
         deratingFactor: true,
         fullLoadCurrent: true,
         deratedCurrent: true,
@@ -518,28 +527,7 @@ const ResultsTab = () => {
         shortCircuitCurrent_kA: true,
         shortCircuitWithstand_kA: true,
         status: true,
-      };
-        deratingAmbientTemp: true,
-        deratingGrouping: true,
-        deratingGroundTemp: true,
-        deratingDepth: true,
-        deratingThermalResistivity: true,
-        deratingUnbalance: true,
-        deratingTotal: true,
-        deredCurrent: true,
-        comparison: true,
-        vdropRunning: true,
-        vdropRunningPercent: true,
-        vdropAllowable: true,
-        vdropStarting: true,
-        vdropStartingPercent: true,
-        vdropStartingAllowable: true,
-        numberOfRuns: true,
-        currentPerRun: true,
-        routeLength: true,
-        designation: true,
-        status: true,
-      };
+        };
     }
   });
 
@@ -607,12 +595,27 @@ const ResultsTab = () => {
 
     // Post-process statuses: convert non-critical FAILED to WARNING when appropriate
     for (const r of allCables) {
+      // If engine set FAILED due to calculation error, keep it FAILED
       if (r.status === 'FAILED') {
         const critical = (r.warnings || []).some(w => /Sizing Error|Selected size|No catalog|Invalid full load current/i.test(w));
         if (!critical) {
-          // demote to WARNING to avoid false-negative failed markers for informational issues
+          // demote informational failures to WARNING so UI doesn't show false red X
           r.status = (r.warnings && r.warnings.length > 0) ? 'WARNING' : 'APPROVED';
         }
+      }
+
+      // Final validation: ensure derated installed capacity covers load (installedRatingTotal >= fullLoadCurrent)
+      const derated = (r.installedRatingTotal || r.deratedCurrent || 0);
+      if (derated < (r.fullLoadCurrent || 0)) {
+        r.status = 'FAILED';
+        r.warnings = [...(r.warnings || []), `Insufficient derated capacity: ${derated.toFixed(2)}A < FLC ${((r.fullLoadCurrent||0)).toFixed(2)}A`];
+      }
+
+      // Voltage drop thresholds produce WARNING (not immediate failure)
+      const vLimit = r.vdropRunningAllowable || 5.0;
+      if ((r.voltageDrop_running_percent || 0) > vLimit) {
+        r.status = r.status === 'FAILED' ? 'FAILED' : 'WARNING';
+        r.warnings = [...(r.warnings || []), `Running V-drop ${r.voltageDrop_running_percent.toFixed(2)}% > ${vLimit}%`];
       }
     }
 
