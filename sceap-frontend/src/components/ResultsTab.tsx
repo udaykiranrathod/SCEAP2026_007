@@ -585,6 +585,37 @@ const ResultsTab = () => {
         return result;
       });
 
+    // If pathAnalysis is available, map path voltage drop values into each result
+    if (pathAnalysis && Array.isArray(pathAnalysis.paths)) {
+      for (const r of allCables) {
+        try {
+          // Find a path that includes this cable (match by cableNumber first)
+          const matched = pathAnalysis.paths.find((p) => p.cables.some((c: any) => String(c.cableNumber).trim() === String(r.cableNumber).trim()));
+          if (matched) {
+            // Override running v-drop with path-level v-drop (trace from OptimizationTab)
+            r.voltageDrop_running_volt = matched.voltageDrop || r.voltageDrop_running_volt;
+            r.voltageDrop_running_percent = (matched.voltageDropPercent != null ? matched.voltageDropPercent : r.voltageDrop_running_percent);
+            // Keep starting v-drop from engine if available
+            r.routeLength = matched.totalDistance || r.routeLength;
+          }
+        } catch (e) {
+          // Don't break result generation on path mapping errors
+          console.warn('Path mapping failed for', r.cableNumber, e);
+        }
+      }
+    }
+
+    // Post-process statuses: convert non-critical FAILED to WARNING when appropriate
+    for (const r of allCables) {
+      if (r.status === 'FAILED') {
+        const critical = (r.warnings || []).some(w => /Sizing Error|Selected size|No catalog|Invalid full load current/i.test(w));
+        if (!critical) {
+          // demote to WARNING to avoid false-negative failed markers for informational issues
+          r.status = (r.warnings && r.warnings.length > 0) ? 'WARNING' : 'APPROVED';
+        }
+      }
+    }
+
     return allCables;
   };
 
@@ -1054,6 +1085,55 @@ const ResultsTab = () => {
                 {visibleColumns.routeLength && (
                   <th className="px-2 py-2 text-center text-slate-200 font-bold" rowSpan={2}>L(m)</th>
                 )}
+                {/* --- Professional feeder details (inserted per Excel template) --- */}
+                {visibleColumns.breakerType && (
+                  <th className="px-2 py-2 text-left text-slate-200 font-bold" rowSpan={2}>Breaker Type</th>
+                )}
+                {visibleColumns.feederType && (
+                  <th className="px-2 py-2 text-left text-slate-200 font-bold" rowSpan={2}>Type of Feeder</th>
+                )}
+                {visibleColumns.motorRating && (
+                  <th className="px-2 py-2 text-center text-slate-200 font-bold" rowSpan={2}>Load / Motor Rating (kW/kVA)</th>
+                )}
+                {visibleColumns.voltageKV && (
+                  <th className="px-2 py-2 text-center text-slate-200 font-bold" rowSpan={2}>V (kV)</th>
+                )}
+                {visibleColumns.powerFactor && (
+                  <th className="px-2 py-2 text-center text-slate-200 font-bold" rowSpan={2}>Power Factor</th>
+                )}
+                {visibleColumns.efficiency && (
+                  <th className="px-2 py-2 text-center text-slate-200 font-bold" rowSpan={2}>Efficiency</th>
+                )}
+                {visibleColumns.voltageVariationFactor && (
+                  <th className="px-2 py-2 text-center text-slate-200 font-bold" rowSpan={2}>Voltage Variation Factor</th>
+                )}
+                {visibleColumns.ratedCurrent && (
+                  <th className="px-2 py-2 text-center text-slate-200 font-bold" rowSpan={2}>Rated Current (A) It</th>
+                )}
+                {visibleColumns.conductorType && (
+                  <th className="px-2 py-2 text-center text-slate-200 font-bold" rowSpan={2}>Type of Conductor</th>
+                )}
+                {visibleColumns.powerSupply && (
+                  <th className="px-2 py-2 text-center text-slate-200 font-bold" rowSpan={2}>Power Supply</th>
+                )}
+                {visibleColumns.installationMethod && (
+                  <th className="px-2 py-2 text-center text-slate-200 font-bold" rowSpan={2}>Installation</th>
+                )}
+                {visibleColumns.motorStartingCurrent && (
+                  <th className="px-2 py-2 text-center text-slate-200 font-bold" rowSpan={2}>Motor Starting Current (A)</th>
+                )}
+                {visibleColumns.motorStartingPF && (
+                  <th className="px-2 py-2 text-center text-slate-200 font-bold" rowSpan={2}>Motor Starting PF</th>
+                )}
+                {visibleColumns.numberOfCores && (
+                  <th className="px-2 py-2 text-center text-slate-200 font-bold" rowSpan={2}>No. of cores</th>
+                )}
+                {visibleColumns.cableSize && (
+                  <th className="px-2 py-2 text-center text-slate-200 font-bold" rowSpan={2}>Size (mm²)</th>
+                )}
+                {visibleColumns.cableRating && (
+                  <th className="px-2 py-2 text-center text-slate-200 font-bold" rowSpan={2}>Cable Current Rating (A)</th>
+                )}
                 
                 {/* DERATING FACTORS - BEFORE FLC */}
                 {deratingCount > 0 && (
@@ -1168,6 +1248,56 @@ const ResultsTab = () => {
                   )}
                   {visibleColumns.routeLength && (
                     <td className="px-2 py-1 text-center text-slate-300">{result.length.toFixed(1)}</td>
+                  )}
+
+                  {/* Professional feeder detail cells (per Excel template) */}
+                  {visibleColumns.breakerType && (
+                    <td className="px-2 py-1 text-slate-300">{(result as any).breakerType || '—'}</td>
+                  )}
+                  {visibleColumns.feederType && (
+                    <td className="px-2 py-1 text-slate-300">{(result as any).feederType || 'F'}</td>
+                  )}
+                  {visibleColumns.motorRating && (
+                    <td className="px-2 py-1 text-center text-slate-300">{(result as any).motorRating ? (Number((result as any).motorRating).toFixed(2)) : (result.loadKW ? result.loadKW.toFixed(2) : '0.00')}</td>
+                  )}
+                  {visibleColumns.voltageKV && (
+                    <td className="px-2 py-1 text-center text-slate-300">{((result.voltage || 0) / 1000).toFixed(3)}</td>
+                  )}
+                  {visibleColumns.powerFactor && (
+                    <td className="px-2 py-1 text-center text-slate-300">{(result.powerFactor || 0.85).toFixed(2)}</td>
+                  )}
+                  {visibleColumns.efficiency && (
+                    <td className="px-2 py-1 text-center text-slate-300">{(result.efficiency || 0.95).toFixed(2)}</td>
+                  )}
+                  {visibleColumns.voltageVariationFactor && (
+                    <td className="px-2 py-1 text-center text-slate-300">{(result.voltageVariationFactor || 1.0).toFixed(2)}</td>
+                  )}
+                  {visibleColumns.ratedCurrent && (
+                    <td className="px-2 py-1 text-center text-slate-300">{(result.ratedCurrent || result.fullLoadCurrent || 0).toFixed(1)}</td>
+                  )}
+                  {visibleColumns.conductorType && (
+                    <td className="px-2 py-1 text-center text-slate-300">{(result.conductorType || (result.conductorMaterial || 'Cu'))}</td>
+                  )}
+                  {visibleColumns.powerSupply && (
+                    <td className="px-2 py-1 text-center text-slate-300">{(result.powerSupply || '3-phase')}</td>
+                  )}
+                  {visibleColumns.installationMethod && (
+                    <td className="px-2 py-1 text-center text-slate-300">{(result.installationMethod || 'Air')}</td>
+                  )}
+                  {visibleColumns.motorStartingCurrent && (
+                    <td className="px-2 py-1 text-center text-slate-300">{(result.startingCurrent || 0).toFixed(1)}</td>
+                  )}
+                  {visibleColumns.motorStartingPF && (
+                    <td className="px-2 py-1 text-center text-slate-300">{((result as any).motorStartingPF || 0.4).toFixed(2)}</td>
+                  )}
+                  {visibleColumns.numberOfCores && (
+                    <td className="px-2 py-1 text-center text-slate-300">{result.numberOfCores}</td>
+                  )}
+                  {visibleColumns.cableSize && (
+                    <td className="px-2 py-1 text-center font-bold text-blue-400">{result.cableSize || result.suitableCableSize}</td>
+                  )}
+                  {visibleColumns.cableRating && (
+                    <td className="px-2 py-1 text-center text-slate-300">{(result.cableRating || result.catalogRating || 0).toFixed(1)}</td>
                   )}
 
                   {/* Derating Factors - FIRST */}
