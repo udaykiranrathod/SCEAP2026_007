@@ -302,8 +302,9 @@ const calculateCableSizing = (cable: CableSegment): CableSizingResult => {
 };
 
 const ResultsTab = () => {
-  const { normalizedFeeders } = usePathContext();
+  const { normalizedFeeders, pathAnalysis } = usePathContext();
   const [results, setResults] = useState<CableSizingResult[]>([]);
+  const [dedupeReport, setDedupeReport] = useState<{ count: number; sample: any[] }>({ count: 0, sample: [] });
   const [showCustomize, setShowCustomize] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(() => {
     try {
@@ -418,10 +419,33 @@ const ResultsTab = () => {
   // Generate results from ALL normalized feeders (not just discovered paths)
   const generateResults = () => {
     if (!normalizedFeeders || normalizedFeeders.length === 0) return [];
+    // Remove exact duplicate rows (same cableNumber, from/to, length, load, voltage)
+    const keyFor = (f: any) => `${f.cableNumber}||${f.fromBus}||${f.toBus}||${f.length}||${f.loadKW}||${f.voltage}`;
+    const seen = new Set<string>();
+    const uniqueFeeders: typeof normalizedFeeders = [] as any;
+    const duplicates: any[] = [];
 
-    // Process ALL feeders in input order, not just those in paths
-    const allCables: CableSizingResult[] = normalizedFeeders
-      .sort((a, b) => a.serialNo - b.serialNo) // Maintain input order by serial number
+    for (const f of normalizedFeeders) {
+      const k = keyFor(f);
+      if (seen.has(k)) {
+        duplicates.push(f);
+      } else {
+        seen.add(k);
+        uniqueFeeders.push(f);
+      }
+    }
+
+    if (duplicates.length > 0) {
+      console.warn(`[RESULTS] Detected and removed ${duplicates.length} exact duplicate feeder row(s). Display will show ${uniqueFeeders.length} unique rows.`);
+      console.warn('Removed duplicates sample:', duplicates.slice(0, 5));
+      setDedupeReport({ count: duplicates.length, sample: duplicates.slice(0, 5) });
+    } else {
+      setDedupeReport({ count: 0, sample: [] });
+    }
+
+    // Process unique feeders in input order
+    const allCables: CableSizingResult[] = uniqueFeeders
+      .sort((a, b) => a.serialNo - b.serialNo)
       .map((cable) => {
         const result = calculateCableSizing(cable);
         const issues = detectAnomalies(cable, result);
@@ -442,6 +466,39 @@ const ResultsTab = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [normalizedFeeders]);
+
+  // Verification and logging: provide concise report for debugging
+  useEffect(() => {
+    try {
+      console.group('RESULTS VERIFICATION');
+      console.log('Input feeders:', normalizedFeeders ? normalizedFeeders.length : 0);
+      console.log('Duplicates removed:', dedupeReport.count);
+      if (dedupeReport.sample.length > 0) console.log('Duplicate sample:', dedupeReport.sample);
+      console.log('Discovered paths:', pathAnalysis ? pathAnalysis.totalPaths : 0);
+      console.log('Results generated:', results.length);
+
+      const failed = results.filter(r => r.status === 'FAILED');
+      const warnings = results.filter(r => r.status === 'WARNING');
+      console.log('Failed results:', failed.length);
+      if (failed.length > 0) console.log(failed.slice(0, 10));
+      console.log('Warnings:', warnings.length);
+      if (warnings.length > 0) console.log(warnings.slice(0, 10));
+
+      // Show first 5 full path sequences if available
+      if (pathAnalysis && pathAnalysis.paths && pathAnalysis.paths.length > 0) {
+        console.log('Sample paths (up to 5):');
+        pathAnalysis.paths.slice(0, 5).forEach((p: any, idx: number) => {
+          console.log(`Path ${idx + 1}: ${p.startPanel} → ... → ${p.endTransformer} (${p.cables.length} cables, ${p.totalDistance}m)`);
+          console.log(p.cables.map((c: any) => `${c.fromBus}→${c.toBus} (${c.cableNumber})`).join('  |  '));
+        });
+      }
+
+      console.groupEnd();
+    } catch (err) {
+      console.error('Verification logging failed:', err);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [results, dedupeReport, pathAnalysis]);
 
   if (results.length === 0) {
     return (
@@ -589,6 +646,20 @@ const ResultsTab = () => {
   const validResults = results.filter((r) => r.status === 'APPROVED').length;
   const invalidResults = results.filter((r) => r.status === 'FAILED').length;
   const totalLoad = results.reduce((sum, r) => sum + r.loadKW, 0);
+
+  // Dynamic visible column counts for grouped headers
+  const deratingCount = [
+    'deratingTotal',
+    'deratingAmbientTemp',
+    'deratingGrouping',
+    'deratingThermalResistivity',
+    'deratingDepth',
+  ].reduce((acc, k) => acc + (visibleColumns[k] ? 1 : 0), 0);
+
+  const flcCount = ['fullLoadCurrent', 'deredCurrent', 'cableSize'].reduce(
+    (acc, k) => acc + (visibleColumns[k] ? 1 : 0),
+    0
+  );
 
   return (
     <div className="space-y-6">
@@ -828,20 +899,40 @@ const ResultsTab = () => {
             <thead className="bg-slate-700 sticky top-0 border-b border-slate-600">
               <tr>
                 {/* Identity columns - subtle background */}
-                <th className="px-2 py-2 text-left text-slate-200 font-bold" rowSpan={2}>S.No</th>
-                <th className="px-2 py-2 text-left text-slate-200 font-bold" rowSpan={2}>Cable #</th>
-                <th className="px-2 py-2 text-left text-slate-200 font-bold" rowSpan={2}>Description</th>
-                <th className="px-2 py-2 text-center text-slate-200 font-bold" rowSpan={2}>From Bus</th>
-                <th className="px-2 py-2 text-center text-slate-200 font-bold" rowSpan={2}>To Bus</th>
-                <th className="px-2 py-2 text-center text-slate-200 font-bold" rowSpan={2}>V(V)</th>
-                <th className="px-2 py-2 text-center text-slate-200 font-bold" rowSpan={2}>Load(kW)</th>
-                <th className="px-2 py-2 text-center text-slate-200 font-bold" rowSpan={2}>L(m)</th>
+                {visibleColumns.serialNo && (
+                  <th className="px-2 py-2 text-left text-slate-200 font-bold" rowSpan={2}>S.No</th>
+                )}
+                {visibleColumns.cableNumber && (
+                  <th className="px-2 py-2 text-left text-slate-200 font-bold" rowSpan={2}>Cable #</th>
+                )}
+                {visibleColumns.feederDescription && (
+                  <th className="px-2 py-2 text-left text-slate-200 font-bold" rowSpan={2}>Description</th>
+                )}
+                {visibleColumns.fromBus && (
+                  <th className="px-2 py-2 text-center text-slate-200 font-bold" rowSpan={2}>From Bus</th>
+                )}
+                {visibleColumns.toBus && (
+                  <th className="px-2 py-2 text-center text-slate-200 font-bold" rowSpan={2}>To Bus</th>
+                )}
+                {visibleColumns.voltage && (
+                  <th className="px-2 py-2 text-center text-slate-200 font-bold" rowSpan={2}>V(V)</th>
+                )}
+                {visibleColumns.load && (
+                  <th className="px-2 py-2 text-center text-slate-200 font-bold" rowSpan={2}>Load(kW)</th>
+                )}
+                {visibleColumns.routeLength && (
+                  <th className="px-2 py-2 text-center text-slate-200 font-bold" rowSpan={2}>L(m)</th>
+                )}
                 
                 {/* DERATING FACTORS - BEFORE FLC */}
-                <th colSpan={5} className="px-2 py-2 text-center text-slate-900 font-bold bg-yellow-400 border-l border-slate-500">Derating Factors (IEC)</th>
-                
+                {deratingCount > 0 && (
+                  <th colSpan={deratingCount} className="px-2 py-2 text-center text-slate-900 font-bold bg-yellow-400 border-l border-slate-500">Derating Factors (IEC)</th>
+                )}
+
                 {/* Section 1: FLC Sizing */}
-                <th colSpan={3} className="px-2 py-2 text-center text-white font-bold border-l border-slate-500">1. FLC Sizing</th>
+                {flcCount > 0 && (
+                  <th colSpan={flcCount} className="px-2 py-2 text-center text-white font-bold border-l border-slate-500">1. FLC Sizing</th>
+                )}
                 
                 {/* Cable Sizes by Constraints */}
                 <th colSpan={3} className="px-2 py-2 text-center text-white font-bold bg-slate-600 border-l border-slate-500">Cable Sizes (mm²)</th>
@@ -864,16 +955,32 @@ const ResultsTab = () => {
               {/* Sub-headers */}
               <tr className="bg-slate-650 border-b border-slate-600">
                 {/* Derating sub-headers - FIRST */}
-                <th className="px-2 py-1 text-center text-slate-900 text-xs font-bold bg-yellow-300 border-l border-slate-500">K_tot</th>
-                <th className="px-2 py-1 text-center text-slate-900 text-xs font-bold bg-yellow-300">K_t</th>
-                <th className="px-2 py-1 text-center text-slate-900 text-xs font-bold bg-yellow-300">K_g</th>
-                <th className="px-2 py-1 text-center text-slate-900 text-xs font-bold bg-yellow-300">K_s</th>
-                <th className="px-2 py-1 text-center text-slate-900 text-xs font-bold bg-yellow-300">K_d</th>
+                {visibleColumns.deratingTotal && (
+                  <th className="px-2 py-1 text-center text-slate-900 text-xs font-bold bg-yellow-300 border-l border-slate-500">K_tot</th>
+                )}
+                {visibleColumns.deratingAmbientTemp && (
+                  <th className="px-2 py-1 text-center text-slate-900 text-xs font-bold bg-yellow-300">K_t</th>
+                )}
+                {visibleColumns.deratingGrouping && (
+                  <th className="px-2 py-1 text-center text-slate-900 text-xs font-bold bg-yellow-300">K_g</th>
+                )}
+                {visibleColumns.deratingThermalResistivity && (
+                  <th className="px-2 py-1 text-center text-slate-900 text-xs font-bold bg-yellow-300">K_s</th>
+                )}
+                {visibleColumns.deratingDepth && (
+                  <th className="px-2 py-1 text-center text-slate-900 text-xs font-bold bg-yellow-300">K_d</th>
+                )}
                 
                 {/* FLC sub-headers */}
-                <th className="px-2 py-1 text-center text-slate-300 text-xs border-l border-slate-500">FLC(A)</th>
-                <th className="px-2 py-1 text-center text-slate-300 text-xs">Derated(A)</th>
-                <th className="px-2 py-1 text-center text-slate-300 text-xs">Size(mm²)</th>
+                {visibleColumns.fullLoadCurrent && (
+                  <th className="px-2 py-1 text-center text-slate-300 text-xs border-l border-slate-500">FLC(A)</th>
+                )}
+                {visibleColumns.deredCurrent && (
+                  <th className="px-2 py-1 text-center text-slate-300 text-xs">Derated(A)</th>
+                )}
+                {visibleColumns.cableSize && (
+                  <th className="px-2 py-1 text-center text-slate-300 text-xs">Size(mm²)</th>
+                )}
                 
                 {/* Cable sizes sub-headers */}
                 <th className="px-2 py-1 text-center text-slate-300 text-xs border-l border-slate-500">By Isc</th>
@@ -907,26 +1014,58 @@ const ResultsTab = () => {
                   className={`hover:bg-slate-700/50 transition-colors ${result.isAnomaly ? 'bg-red-950/20' : ''}`}
                 >
                   {/* Identity cells */}
-                  <td className="px-2 py-1 text-slate-300">{result.serialNo}</td>
-                  <td className="px-2 py-1 text-slate-300 font-medium">{result.cableNumber}</td>
-                  <td className="px-2 py-1 text-slate-300 max-w-xs text-xs">{result.feederDescription}</td>
-                  <td className="px-2 py-1 text-cyan-400 text-xs font-medium">{result.fromBus}</td>
-                  <td className="px-2 py-1 text-cyan-400 text-xs font-medium">{result.toBus}</td>
-                  <td className="px-2 py-1 text-center text-slate-300">{result.voltage}</td>
-                  <td className="px-2 py-1 text-center text-slate-300">{result.loadKW.toFixed(2)}</td>
-                  <td className="px-2 py-1 text-center text-slate-300">{result.length.toFixed(1)}</td>
-                  
+                  {visibleColumns.serialNo && (
+                    <td className="px-2 py-1 text-slate-300">{result.serialNo}</td>
+                  )}
+                  {visibleColumns.cableNumber && (
+                    <td className="px-2 py-1 text-slate-300 font-medium">{result.cableNumber}</td>
+                  )}
+                  {visibleColumns.feederDescription && (
+                    <td className="px-2 py-1 text-slate-300 max-w-xs text-xs">{result.feederDescription}</td>
+                  )}
+                  {visibleColumns.fromBus && (
+                    <td className="px-2 py-1 text-cyan-400 text-xs font-medium">{result.fromBus}</td>
+                  )}
+                  {visibleColumns.toBus && (
+                    <td className="px-2 py-1 text-cyan-400 text-xs font-medium">{result.toBus}</td>
+                  )}
+                  {visibleColumns.voltage && (
+                    <td className="px-2 py-1 text-center text-slate-300">{result.voltage}</td>
+                  )}
+                  {visibleColumns.load && (
+                    <td className="px-2 py-1 text-center text-slate-300">{result.loadKW.toFixed(2)}</td>
+                  )}
+                  {visibleColumns.routeLength && (
+                    <td className="px-2 py-1 text-center text-slate-300">{result.length.toFixed(1)}</td>
+                  )}
+
                   {/* Derating Factors - FIRST */}
-                  <td className="px-2 py-1 text-center font-bold bg-yellow-500/20 border-l border-slate-600">{result.deratingFactor.toFixed(3)}</td>
-                  <td className="px-2 py-1 text-center text-sm bg-yellow-500/20">{(result.deratingComponents?.K_temp || 1).toFixed(2)}</td>
-                  <td className="px-2 py-1 text-center text-sm bg-yellow-500/20">{(result.deratingComponents?.K_group || 1).toFixed(2)}</td>
-                  <td className="px-2 py-1 text-center text-sm bg-yellow-500/20">{(result.deratingComponents?.K_soil || 1).toFixed(2)}</td>
-                  <td className="px-2 py-1 text-center text-sm bg-yellow-500/20">{(result.deratingComponents?.K_depth || 1).toFixed(2)}</td>
-                  
+                  {visibleColumns.deratingTotal && (
+                    <td className="px-2 py-1 text-center font-bold bg-yellow-500/20 border-l border-slate-600">{result.deratingFactor.toFixed(3)}</td>
+                  )}
+                  {visibleColumns.deratingAmbientTemp && (
+                    <td className="px-2 py-1 text-center text-sm bg-yellow-500/20">{(result.deratingComponents?.K_temp || 1).toFixed(2)}</td>
+                  )}
+                  {visibleColumns.deratingGrouping && (
+                    <td className="px-2 py-1 text-center text-sm bg-yellow-500/20">{(result.deratingComponents?.K_group || 1).toFixed(2)}</td>
+                  )}
+                  {visibleColumns.deratingThermalResistivity && (
+                    <td className="px-2 py-1 text-center text-sm bg-yellow-500/20">{(result.deratingComponents?.K_soil || 1).toFixed(2)}</td>
+                  )}
+                  {visibleColumns.deratingDepth && (
+                    <td className="px-2 py-1 text-center text-sm bg-yellow-500/20">{(result.deratingComponents?.K_depth || 1).toFixed(2)}</td>
+                  )}
+
                   {/* FLC Sizing */}
-                  <td className="px-2 py-1 text-center text-slate-300 border-l border-slate-600">{result.fullLoadCurrent.toFixed(1)}</td>
-                  <td className="px-2 py-1 text-center text-slate-300">{result.deratedCurrent.toFixed(1)}</td>
-                  <td className="px-2 py-1 text-center font-bold text-blue-400">{result.sizeByCurrent}</td>
+                  {visibleColumns.fullLoadCurrent && (
+                    <td className="px-2 py-1 text-center text-slate-300 border-l border-slate-600">{result.fullLoadCurrent.toFixed(1)}</td>
+                  )}
+                  {visibleColumns.deredCurrent && (
+                    <td className="px-2 py-1 text-center text-slate-300">{result.deratedCurrent.toFixed(1)}</td>
+                  )}
+                  {visibleColumns.cableSize && (
+                    <td className="px-2 py-1 text-center font-bold text-blue-400">{result.sizeByCurrent}</td>
+                  )}
                   
                   {/* Cable Sizes */}
                   <td className="px-2 py-1 text-center text-red-400 font-medium border-l border-slate-600">{result.sizeByShortCircuit}</td>

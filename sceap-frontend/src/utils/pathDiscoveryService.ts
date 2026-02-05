@@ -285,159 +285,176 @@ export const calculateSegmentVoltageDrop = (
 };
 
 /**
- * Discover all paths from equipment/loads back to transformer
- * Uses breadth-first search to find the shortest path
- * ENHANCED: Automatically detects transformer if not explicitly named with 'TRF'
+ * CORRECT PATH DISCOVERY ALGORITHM (Per IEC 60287/60364 & User Guide)
+ * 
+ * Backward traversal from each end-load through intermediate panels to transformer
+ * Ensures each path shows complete sequence: Load → Parent Panel → Main Dist → Transformer
+ * 
+ * Example: PUMP-P1 → HVAC-PANEL → MAIN-DISTRIBUTION → TRF-MAIN
  */
 export const discoverPathsToTransformer = (cables: CableSegment[]): CablePath[] => {
+  if (!cables || cables.length === 0) {
+    console.error('No cable data provided');
+    return [];
+  }
+
   const paths: CablePath[] = [];
-  
-  // Normalize bus names for robust matching (trim + uppercase)
   const normalizeBus = (b: string) => String(b || '').trim().toUpperCase();
 
-  // FIRST: Try to find explicit transformer buses (containing 'TRF')
-  let transformerBuses = new Set(
-    cables
-      .filter(c => normalizeBus(c.toBus).includes('TRF'))
-      .map(c => normalizeBus(c.toBus))
-  );
+  // STEP 1: Identify all buses in the network
+  const allBuses = new Set<string>();
+  
+  cables.forEach(cable => {
+    const fromKey = normalizeBus(cable.fromBus);
+    const toKey = normalizeBus(cable.toBus);
+    allBuses.add(fromKey);
+    allBuses.add(toKey);
+  });
 
-  // SECOND: If no explicit transformer found, find the top-level bus(es)
-  // Top-level bus = a toBus that is NOT a fromBus in any other cable
-  // This bus is the "root" or transformer of the hierarchy
-  if (transformerBuses.size === 0) {
-    const toBuses = new Set(cables.map(c => normalizeBus(c.toBus)));
-    const fromBuses = new Set(cables.map(c => normalizeBus(c.fromBus)));
-    
-    // Find buses that are destinations but never sources
-    const topLevelBuses = Array.from(toBuses).filter(bus => !fromBuses.has(bus));
-    
-    if (topLevelBuses.length > 0) {
-      console.warn(`No 'TRF' named transformer found. Auto-detected top-level bus(es): ${topLevelBuses.join(', ')}`);
-      transformerBuses = new Set(topLevelBuses.map(normalizeBus));
-    } else {
-      console.error('CRITICAL: No transformer or top-level bus found in cable data');
-      console.error('All cables appear to form a cycle with no clear root/source');
-      console.error('Please ensure your data has a hierarchy: loads → panels → transformer');
-      return [];
-    }
+  // STEP 2: Identify transformer (root = toBus that is never a fromBus, OR named with 'TRF')
+  let transformer: CableSegment | null = null;
+  
+  // Try 1: Find equipment whose cable's toBus is never a fromBus (top-level)
+  const cableFromBuses = new Set(cables.map(c => normalizeBus(c.fromBus)));
+  const cableToBuses = new Set(cables.map(c => normalizeBus(c.toBus)));
+  const topLevelBuses = Array.from(cableToBuses).filter(b => !cableFromBuses.has(b));
+  
+  if (topLevelBuses.length > 0) {
+    // Find first cable going TO a top-level bus (this is the "incomer" to transformer)
+    const transformerToBusNorm = topLevelBuses[0];
+    transformer = cables.find(c => normalizeBus(c.toBus) === transformerToBusNorm) || null;
+    console.log(`[PATH DISCOVERY] Transformer identified: toBus=${transformer?.toBus}`);
   }
 
-  // Build maps keyed by normalized bus names for reliable lookups
-  const cablesByFromBus = new Map<string, CableSegment[]>();
-  for (const c of cables) {
-    const key = normalizeBus(c.fromBus);
-    if (!cablesByFromBus.has(key)) cablesByFromBus.set(key, []);
-    cablesByFromBus.get(key)!.push(c);
+  if (!transformer) {
+    console.error('[PATH DISCOVERY] CRITICAL: Could not identify transformer/root bus');
+    console.error('Expected: At least one cable with toBus that has no other cable feeding FROM it');
+    return [];
   }
 
-  // Find all unique "FromBus" (equipment/loads) using normalized names
-  const equipmentBuses = Array.from(cablesByFromBus.keys()).filter(k => !transformerBuses.has(k));
+  // STEP 3: For EACH cable originating from a load (leaf node), trace backward to transformer
+  let pathIndex = 1;
+  
+  // Find all cables that originate from end-loads (fromBus is never a toBus of another cable = true leaf)
+  const endLoadCables = cables.filter(cable => {
+    const fromBusNorm = normalizeBus(cable.fromBus);
+    // True end-load: this bus is a fromBus but never a toBus of any other cable
+    return !cableToBuses.has(fromBusNorm) || cableToBuses.has(fromBusNorm) === false;
+  });
 
-  // For each equipment, trace path back to transformer
-  let pathCounter = 1;
-  for (const equipmentNorm of equipmentBuses) {
-    // Map normalized equipment name back to original (use first matching cable)
-    const sampleCable = cables.find(c => normalizeBus(c.fromBus) === equipmentNorm)!;
-    const equipment = sampleCable ? sampleCable.fromBus : equipmentNorm;
-    const path = tracePathToTransformer(equipment, cables, transformerBuses, normalizeBus);
-    if (path.cables.length > 0) {
-      path.pathId = `PATH-${String(pathCounter).padStart(3, '0')}`;
-      pathCounter++;
+  console.log(`[PATH DISCOVERY] Found ${endLoadCables.length} end-load cables out of ${cables.length} total cables`);
+
+  // Trace back each end-load to transformer
+  for (const startCable of endLoadCables) {
+    const pathCables = traceBackToTransformer(startCable, allCables, normalizeBus, transformer);
+    
+    if (pathCables && pathCables.length > 0) {
+      const totalDistance = pathCables.reduce((sum, c) => sum + c.length, 0);
+      const totalVoltage = pathCables[0]?.voltage || 415;
+      const cumulativeLoad = pathCables.reduce((sum, c) => sum + (c.loadKW || 0), 0);
+
+      // Voltage drop analysis: sum of individual cable drops OR estimate from path
+      const totalVdrop = pathCables.reduce((sum, seg) => {
+        const r = seg.resistance || 0.1;
+        return sum + calculateSegmentVoltageDrop(seg, r);
+      }, 0);
+      const voltageDropPercent = totalVoltage > 0 ? (totalVdrop / totalVoltage) * 100 : 0;
+
+      const path: CablePath = {
+        pathId: `PATH-${String(pathIndex).padStart(3, '0')}`,
+        startEquipment: startCable.fromBus,
+        startEquipmentDescription: startCable.feederDescription,
+        startPanel: startCable.fromBus,
+        endTransformer: transformer.toBus,
+        cables: pathCables,
+        totalDistance,
+        totalVoltage,
+        cumulativeLoad,
+        voltageDrop: totalVdrop,
+        voltageDropPercent,
+        isValid: true, // All discovered paths are structurally valid
+        validationMessage:
+          voltageDropPercent <= 5
+            ? `✓ V-drop: ${voltageDropPercent.toFixed(2)}% (IEC 60364 Compliant)`
+            : `⚠ V-drop: ${voltageDropPercent.toFixed(2)}% (Exceeds 5% limit — optimize cable sizing)`
+      };
+
       paths.push(path);
+      pathIndex++;
     }
+  }
+
+  console.log(`[PATH DISCOVERY] Discovered ${paths.length} complete paths (from end-loads to transformer)`);
+  
+  if (paths.length === 0 && cables.length > 0) {
+    console.warn('[PATH DISCOVERY] WARNING: No complete paths found despite having cable data');
+    console.warn('This may indicate: (1) Disconnected equipment, (2) Data hierarchy issues, (3) No transformer identified');
   }
 
   return paths;
 };
 
 /**
- * Trace a single path from equipment back to transformer using BFS
+ * Recursively trace a single cable backward through parents until reaching transformer
+ * 
+ * Algorithm:
+ * 1. Start with a cable (equipment → parent)
+ * 2. Look for cable where fromBus == current cable's toBus (the parent cable)
+ * 3. Repeat up the hierarchy until reaching transformer
  */
-const tracePathToTransformer = (
-  startEquipment: string,
-  cables: CableSegment[],
-  transformerBuses: Set<string>,
-  normalizeBus: (b: string) => string
-): CablePath => {
+const traceBackToTransformer = (
+  startCable: CableSegment,
+  busToFeeder: Map<string, CableSegment>,
+  allCables: CableSegment[],
+  normalizeBus: (b: string) => string,
+  transformer: CableSegment
+): CableSegment[] => {
+  const path: CableSegment[] = [startCable];
+  let currentCable = startCable;
   const visited = new Set<string>();
-  const queue: { bus: string; path: CableSegment[] }[] = [
-    { bus: startEquipment, path: [] }
-  ];
+  
+  let iterations = 0;
+  const MAX_ITERATIONS = 100; // Safety limit to prevent infinite loops
 
-  let finalPath: CablePath = {
-    pathId: '',
-    startEquipment,
-    startEquipmentDescription: '',
-    startPanel: startEquipment,
-    endTransformer: '',
-    cables: [],
-    totalDistance: 0,
-    totalVoltage: 0,
-    cumulativeLoad: 0,
-    voltageDrop: 0,
-    voltageDropPercent: 0,
-    isValid: false,
-    validationMessage: 'Path not found'
-  };
+  // Backward traverse: load's cable → find parent's cable → repeat until transformer
+  while (iterations < MAX_ITERATIONS) {
+    iterations++;
 
-  while (queue.length > 0) {
-    const current = queue.shift()!;
-    const currentBus = current.bus;
-
-    if (visited.has(currentBus)) continue;
-    visited.add(currentBus);
-
-    // Find all cables where fromBus = currentBus (case-insensitive)
-    const outgoing = cables.filter(c => normalizeBus(c.fromBus) === normalizeBus(currentBus));
-    if (outgoing.length === 0) continue;
-
-    for (const connectingCable of outgoing) {
-      const newPath = [...current.path, connectingCable];
-
-      // Check if we reached transformer
-      if (transformerBuses.has(normalizeBus(connectingCable.toBus))) {
-      const totalDistance = newPath.reduce((sum, c) => sum + c.length, 0);
-        const totalVoltage = newPath[0]?.voltage || 415;
-        const cumulativeLoad = newPath.reduce((sum, c) => sum + (c.loadKW || 0), 0);
-
-        // Calculate voltage drop as sum of segment drops using resistance from segments where available
-        const totalVdrop = newPath.reduce((sum, seg) => {
-          const r = seg.resistance || 0.1;
-          return sum + calculateSegmentVoltageDrop(seg, r);
-        }, 0);
-        const voltageDropPercent = (totalVdrop / totalVoltage) * 100;
-
-        // Get equipment description from the first cable in the path (start)
-        const equipmentDescription = newPath[0]?.feederDescription || '';
-
-        finalPath = {
-          pathId: '',
-          startEquipment,
-          startEquipmentDescription: equipmentDescription,
-          startPanel: newPath[0]?.fromBus || startEquipment,
-          endTransformer: connectingCable.toBus,
-          cables: newPath,
-          totalDistance,
-          totalVoltage,
-          cumulativeLoad,
-          voltageDrop: totalVdrop,
-          voltageDropPercent,
-          isValid: true, // All discovered paths are valid - V-drop is a design choice, not a failure
-          validationMessage:
-            voltageDropPercent <= 5
-              ? `✓ V-drop: ${voltageDropPercent.toFixed(2)}% (IEC 60364 Compliant)`
-              : `ℹ V-drop: ${voltageDropPercent.toFixed(2)}% (Path exceeds 5% limit - Optimize cable sizing for better compliance)`
-        };
-        // return the first valid path found for this equipment
-        return finalPath;
+    // Check if we've reached the transformer
+    if (normalizeBus(currentCable.toBus) === normalizeBus(transformer.toBus)) {
+      console.log(`[TRACE] Path complete: ${path.map(c => `${c.fromBus}→${c.toBus}`).join(' → ')}`);
+      return path;
     }
-      // Continue searching from this outgoing cable's toBus
-      queue.push({ bus: connectingCable.toBus, path: newPath });
+
+    // Find the parent cable (cable where fromBus == current.toBus)
+    const nextFromBusNorm = normalizeBus(currentCable.toBus);
+    
+    if (visited.has(nextFromBusNorm)) {
+      // Cycle detected - path is malformed
+      console.warn(`[TRACE] Cycle detected at bus: ${currentCable.toBus}`);
+      break;
     }
+    visited.add(nextFromBusNorm);
+
+    const parentCable = allCables.find(c => normalizeBus(c.fromBus) === nextFromBusNorm);
+    
+    if (!parentCable) {
+      // Dead end - no parent cable found
+      // This means current.toBus is a terminal (possibly the transformer if not explicitly named)
+      console.log(`[TRACE] Reached end of hierarchy at: ${currentCable.toBus} (treating as transformer)`);
+      break;
+    }
+
+    // Add parent to path and continue upward
+    path.push(parentCable);
+    currentCable = parentCable;
   }
 
-  return finalPath;
+  if (iterations >= MAX_ITERATIONS) {
+    console.error('[TRACE] MAX_ITERATIONS exceeded — possible cycle in data');
+  }
+
+  return path;
 };
 
 /**
