@@ -50,6 +50,7 @@ export interface CableSegment {
   protectionType?: 'ACB' | 'MCCB' | 'MCB' | 'None'; // ISc check only for ACB
   maxShortCircuitCurrent?: number; // kA, for ISc check
   protectionClearingTime?: number; // seconds, for ISc calculation
+  breakerType?: string; // Alias for protectionType (display name)
 }
 
 export interface PathAnalysisResult {

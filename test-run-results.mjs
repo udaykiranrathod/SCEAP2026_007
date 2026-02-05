@@ -2,7 +2,7 @@ import { CLEAN_DEMO_FEEDERS } from './sceap-frontend/src/utils/cleanDemoData.js'
 import { normalizeFeeders } from './sceap-frontend/src/utils/pathDiscoveryService.js';
 import CableSizingEngine_V2 from './sceap-frontend/src/utils/CableSizingEngine_V2.js';
 
-const feeders = normalizeFeeders(CLEAN_DEMO_FEEDERS as any);
+const feeders = normalizeFeeders(CLEAN_DEMO_FEEDERS);
 
 const engine = new CableSizingEngine_V2();
 

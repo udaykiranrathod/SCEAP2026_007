@@ -81,6 +81,7 @@ interface CableSizingResult {
   currentPerRun: number; // Current per run (Ir = It / N)
   installedRatingPerRun: number; // Catalog rating × K_total per run
   installedRatingTotal: number; // installedRatingPerRun × numberOfRuns
+  catalogRating?: number; // Cable rating from catalogue
   
   // Column Headers Group 8: Voltage Drop Analysis
   voltageDrop_running_volt: number;
@@ -376,6 +377,8 @@ const calculateCableSizing = (cable: CableSegment): CableSizingResult => {
       numberOfRuns: 1,
       sizePerRun: 0,
       currentPerRun: 0,
+      installedRatingPerRun: 0,
+      installedRatingTotal: 0,
       voltageDrop_running_volt: 0,
       voltageDrop_running_percent: 0,
       vdropRunningAllowable: 5.0,
