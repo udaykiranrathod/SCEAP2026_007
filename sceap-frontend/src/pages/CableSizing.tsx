@@ -3,7 +3,7 @@ import { PageHeader } from '../components/Dashboard';
 import { Calculator, Search, FileText } from 'lucide-react';
 import SizingTab from '../components/SizingTab';
 import OptimizationTab from '../components/OptimizationTab';
-import ResultsTabV2 from '../components/ResultsTabV2';
+import ResultsTab from '../components/ResultsTab';
 
 type TabType = 'sizing' | 'optimization' | 'results';
 
@@ -50,7 +50,7 @@ const CableSizing = () => {
       <div className="tab-content">
         {activeTab === 'sizing' && <SizingTab />}
         {activeTab === 'optimization' && <OptimizationTab />}
-        {activeTab === 'results' && <ResultsTabV2 />}
+        {activeTab === 'results' && <ResultsTab />}
       </div>
     </div>
   );
