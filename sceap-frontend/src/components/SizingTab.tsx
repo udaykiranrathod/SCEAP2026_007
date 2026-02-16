@@ -523,15 +523,35 @@ const SizingTab = () => {
               .filter((item): item is CableCatalogue => item !== null && item.size > 0);
 
             if (mappedData.length > 0) {
-              allSheetsData[sheetName] = mappedData;
-              
+              // Normalize to engine-expected structure: { '<size>': { air, trench, duct, resistance_90C, reactance, cableDia } }
+              const sizesMap: Record<string, any> = {};
+              mappedData.forEach((entry) => {
+                const air = entry.current || entry['Air Rating (A)'] || entry.air || entry.current || 0;
+                const trench = entry.trench || entry['Trench Rating (A)'] || entry.trenchRating || air;
+                const duct = entry.duct || entry['Duct Rating (A)'] || entry.ductRating || air;
+                const resistance90 = entry.resistance_90C || entry.resistance || entry['Resistance @ 90°C (Ω/km)'] || entry.R || 0;
+                const reactance = entry.reactance || entry.X || entry['Reactance (Ω/km)'] || 0;
+                const cableDia = entry.dia || entry['Cable Diameter (mm)'] || entry.cableDia || 0;
+
+                sizesMap[String(entry.size)] = {
+                  air,
+                  trench,
+                  duct,
+                  resistance_90C: resistance90,
+                  reactance,
+                  cableDia,
+                };
+              });
+
+              allSheetsData[sheetName] = sizesMap;
+
               // Set first non-empty sheet as active
               if (Object.keys(allSheetsData).length === 1) {
                 firstSheetName = sheetName;
               }
 
-              console.log(`[CATALOGUE] Sheet "${sheetName}": ${mappedData.length} sizes loaded`);
-              console.log(`[CATALOGUE] Sample: ${JSON.stringify(mappedData[0])}`);
+              console.log(`[CATALOGUE] Sheet "${sheetName}": ${Object.keys(sizesMap).length} sizes loaded`);
+              console.log(`[CATALOGUE] Sample: ${JSON.stringify(Object.values(sizesMap)[0])}`);
             }
           });
 
