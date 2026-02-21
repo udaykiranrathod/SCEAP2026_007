@@ -310,7 +310,7 @@ const SizingTab = () => {
     
     // Normalize through pathDiscoveryService
     const normalizedFeeders = normalizeFeeders(feedersWithId);
-    const analysis = analyzeAllPaths(normalizedFeeders);
+    const analysis = analyzeAllPaths(normalizedFeeders, catalogueData);
     
     console.log('✓ Demo feeders loaded:', normalizedFeeders.length);
     console.log('✓ Paths discovered:', analysis.totalPaths);
@@ -637,7 +637,7 @@ const SizingTab = () => {
   // helper used whenever feederData is modified to recalc paths & normalized data
   const recomputeAnalysis = (feeders: FeederData[]) => {
     const normalized = normalizeFeeders(feeders);
-    const analysis = analyzeAllPaths(normalized);
+    const analysis = analyzeAllPaths(normalized, catalogueData);
     setPathAnalysis(analysis);
     setContextPathAnalysis(analysis);
     setContextNormalizedFeeders(normalized);

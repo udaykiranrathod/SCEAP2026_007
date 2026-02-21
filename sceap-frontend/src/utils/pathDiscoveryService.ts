@@ -3,6 +3,8 @@
  * Used by both Sizing and Optimization pages
  */
 
+import { CableSizingEngine_V2 } from './CableSizingEngine_V2';
+
 export interface CablePath {
   pathId: string;
   startEquipment: string;
@@ -15,6 +17,19 @@ export interface CablePath {
   cumulativeLoad: number;
   voltageDrop: number;
   voltageDropPercent: number;
+  // breakdown of each segment's voltage drop and intermediate formula, plus sizing info
+  voltageDropDetails?: Array<{
+    cableNumber: string;
+    length: number;
+    resistance: number;
+    current: number;
+    deratedCurrent: number;
+    drop: number;
+    formula: string;
+    size: number;
+    numberOfRuns?: number;
+    sizePerRun?: number;
+  }>;
   isValid: boolean;
   validationMessage: string;
 }
@@ -425,10 +440,31 @@ export const discoverPathsToTransformer = (cables: CableSegment[]): CablePath[] 
       const cumulativeLoad = pathCables.reduce((sum, c) => sum + (c.loadKW || 0), 0);
 
       // Voltage drop analysis: sum of individual cable drops OR estimate from path
-      const totalVdrop = pathCables.reduce((sum, seg) => {
+      // compute detailed drop per segment including formula strings
+      const dropDetails: any[] = [];
+      let totalVdrop = 0;
+      pathCables.forEach(seg => {
         const r = seg.resistance || 0.1;
-        return sum + calculateSegmentVoltageDrop(seg, r);
-      }, 0);
+        const drop = calculateSegmentVoltageDrop(seg, r);
+        totalVdrop += drop;
+        // reconstruct current and derated current for formula display
+        const pf = seg.powerFactor || 0.85;
+        const efficiency = seg.efficiency || 0.95;
+        const sqrt3 = 1.732;
+        const current = seg.loadKW ? (seg.loadKW * 1000) / (sqrt3 * seg.voltage * pf * efficiency) : 0;
+        const derated_current = current / (seg.deratingFactor || 1);
+        const formula =
+          `Vdrop = (√3 × ${derated_current.toFixed(2)}A × ${r.toFixed(3)}Ω/km × ${seg.length}m) / 1000 = ${drop.toFixed(3)}V`;
+        dropDetails.push({
+          cableNumber: seg.cableNumber,
+          length: seg.length,
+          resistance: r,
+          current,
+          deratedCurrent: derated_current,
+          drop,
+          formula
+        });
+      });
       const voltageDropPercent = totalVoltage > 0 ? (totalVdrop / totalVoltage) * 100 : 0;
 
       // Determine root bus for this path from the last cable in the traced path
@@ -445,6 +481,7 @@ export const discoverPathsToTransformer = (cables: CableSegment[]): CablePath[] 
         cumulativeLoad,
         voltageDrop: totalVdrop,
         voltageDropPercent,
+        voltageDropDetails: dropDetails,
         isValid: true, // All discovered paths are structurally valid
         validationMessage:
           voltageDropPercent <= 5
@@ -529,7 +566,7 @@ const traceBackToTransformer = (
 /**
  * Analyze all paths and generate summary report
  */
-export const analyzeAllPaths = (cables: CableSegment[]): PathAnalysisResult => {
+export const analyzeAllPaths = (cables: CableSegment[], catalogueData?: any): PathAnalysisResult => {
   if (!cables || cables.length === 0) {
     console.error('ERROR: No cable data provided to analyzeAllPaths');
     return {
@@ -543,6 +580,78 @@ export const analyzeAllPaths = (cables: CableSegment[]): PathAnalysisResult => {
   }
 
   const paths = discoverPathsToTransformer(cables);
+
+  // run sizing engine to compute accurate voltage drop for each cable segment
+  const engine = new CableSizingEngine_V2(catalogueData);
+
+  paths.forEach(p => {
+    let totalVdrop = 0;
+    const dropDetails: any[] = [];
+    p.cables.forEach(seg => {
+      // build input using same logic as ResultsTab.calculateExcelFormulas
+      const lt = (seg.loadType || '').toString().toLowerCase();
+      const feederType = ['transformer', 'feeder'].includes(lt)
+        ? 'F'
+        : ['motor', 'pump', 'fan', 'compressor', 'heater'].includes(lt)
+        ? 'M'
+        : lt === ''
+        ? 'M'
+        : 'F';
+
+      const input: any = {
+        loadType: feederType === 'M' ? 'Motor' : 'Feeder',
+        ratedPowerKW: seg.loadKW || 0,
+        voltage: seg.voltage || 415,
+        phase: '3Ø',
+        efficiency: feederType === 'M' ? (seg.efficiency || 0.95) : 1,
+        powerFactor: seg.powerFactor || 0.85,
+        conductorMaterial: 'Cu',
+        insulation: 'XLPE',
+        numberOfCores: seg.numberOfCores || '3C',
+        installationMethod: seg.installationMethod || 'Air',
+        cableLength: seg.length || 0,
+        ambientTemp: seg.ambientTemp || 40,
+        numberOfLoadedCircuits: seg.numberOfLoadedCircuits || 1,
+        // optional fields defaulted inside engine
+      };
+
+      const rres = engine.sizeCable(input);
+      const resistance = rres.cableResistance_90C_Ohm_km || 0;
+      const current = rres.fullLoadCurrent || 0;
+      const derating = rres.deratingFactor || 1;
+      const deratedCurrent = rres.effectiveCurrentAtRun || current / derating;
+      // drop formula same as earlier helper but using engine data
+      const drop = resistance && seg.length
+        ? (1.732 * deratedCurrent * resistance * seg.length) / 1000
+        : 0;
+
+      const formula =
+        `Vdrop = (√3 × ${deratedCurrent.toFixed(2)}A × ${resistance.toFixed(3)}Ω/km × ${seg.length}m) / 1000 = ${drop.toFixed(3)}V`;
+
+      dropDetails.push({
+        cableNumber: seg.cableNumber,
+        length: seg.length,
+        resistance,
+        current,
+        deratedCurrent,
+        drop,
+        formula,
+        size: rres.selectedConductorArea || 0,
+        numberOfRuns: rres.numberOfRuns,
+        sizePerRun: rres.sizePerRun
+      });
+      totalVdrop += drop;
+    });
+
+    // overwrite path values
+    p.voltageDropDetails = dropDetails;
+    p.voltageDrop = totalVdrop;
+    p.voltageDropPercent = p.totalVoltage > 0 ? (totalVdrop / p.totalVoltage) * 100 : 0;
+    p.validationMessage =
+      p.voltageDropPercent <= 5
+        ? `✓ V-drop: ${p.voltageDropPercent.toFixed(2)}% (IEC 60364 Compliant)`
+        : `⚠ V-drop: ${p.voltageDropPercent.toFixed(2)}% (Exceeds 5% limit — optimize cable sizing)`;
+  });
 
   // VALIDATION: Warn if no paths discovered despite having cable data
   if (paths.length === 0 && cables.length > 0) {

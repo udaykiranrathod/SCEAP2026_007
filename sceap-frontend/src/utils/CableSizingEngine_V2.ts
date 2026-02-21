@@ -105,7 +105,7 @@ export interface CableSizingResult {
   drivingConstraint: 'Ampacity' | 'RunningVdrop' | 'StartingVdrop' | 'ISc';
 }
 
-class CableSizingEngine_V2 {
+export class CableSizingEngine_V2 {
   private input!: CableSizingInput;
   private catalog: any;
   private allSizes: number[] = [];

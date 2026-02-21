@@ -267,6 +267,34 @@ const ResultsTab = () => {
   const [showColumnsMenu, setShowColumnsMenu] = useState(false);
   // column visibility map - true = visible
   const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({});
+  
+  // header info and formula highlighting
+  const [infoHeader, setInfoHeader] = useState<string | null>(null);
+  const [highlightedRow, setHighlightedRow] = useState<number | null>(null);
+
+  const headerInfoMap: Record<string, { full: string; formula?: string }> = {
+    SL: { full: 'Serial number corresponding to the Excel row' },
+    'Cable #': { full: 'Identifier of the cable or feeder segment' },
+    From: { full: 'Originating bus or panel' },
+    To: { full: 'Destination bus or panel' },
+    Desc: { full: 'Description or remarks about the cable' },
+    Type: { full: 'Feeder type (Motor=M or Feeder=F)', formula: 'Determines several downstream formulas including FLC and starting drop' },
+    kW: { full: 'Rated power in kilowatts' },
+    kV: { full: 'Rated voltage in kilovolts' },
+    PF: { full: 'Power factor used in current calculations' },
+    η: { full: 'Efficiency factor used for motors' },
+    FLC: { full: 'Full load current', formula: 'kW / (√3 × kV × PF × η)' },
+    I_m: { full: 'Motor starting current (7.2×FLC for motors)' },
+    PF_m: { full: 'Starting power factor (0.2 for motors)' },
+    Inst: { full: 'Installation method code (AIR/TRENCH/DUCT)' },
+    Runs: { full: 'Number of parallel runs calculated using ceiling logic', formula: 'ceil(conductorArea / maxSingleRunArea)' },
+    OK: { full: 'Capacity check result (YES/NO)' },
+    'ΔU': { full: 'Running voltage drop in volts', formula: '(I × R × L) / 1000' },
+    '%ΔU': { full: 'Running voltage drop as a percentage of nominal voltage' },
+    // add other entries as needed
+  };
+
+  const formulaColumns = Object.keys(headerInfoMap).filter(h => !!headerInfoMap[h].formula);
 
   // initialize visibleColumns once
   useEffect(() => {
@@ -285,6 +313,16 @@ const ResultsTab = () => {
   const toggleColumn = (label: string) => {
     setVisibleColumns(prev => ({ ...prev, [label]: !prev[label] }));
   };
+
+  // render a header cell with info/tooltip click and optional highlighting
+  const renderHeader = (label: string, colorClass?: string) => (
+    <th
+      onClick={() => setInfoHeader(label)}
+      className={`border border-slate-600 px-1 py-0.5 text-xs whitespace-nowrap cursor-help ${colorClass || ''} ${!visibleColumns[label] ? 'hidden' : ''} ${highlightedRow !== null && formulaColumns.includes(label) ? 'bg-yellow-800' : ''}`}
+    >
+      {label}
+    </th>
+  );
 
   // Get available cable sizes from catalogue (if available)
   const getCableSizes = (): number[] => {
@@ -742,50 +780,50 @@ const ResultsTab = () => {
               <th colSpan={2} className="border-2 border-slate-700 px-2 py-1 bg-slate-700 text-slate-200 font-bold text-xs">REMARKS</th>
             </tr>
             
-            {/* Header Row 2 - Field Names */}
+            {/* Header Row 2 - Field Names with clickable info and highlighting */}
             <tr className="bg-slate-700">
-              <th className={`border border-slate-600 px-1 py-0.5 text-blue-300 text-xs whitespace-nowrap ${!visibleColumns['SL'] ? 'hidden' : ''}`}>SL</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-blue-300 text-xs whitespace-nowrap ${!visibleColumns['Cable #'] ? 'hidden' : ''}`}>Cable #</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-blue-300 text-xs whitespace-nowrap ${!visibleColumns['From'] ? 'hidden' : ''}`}>From</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-blue-300 text-xs whitespace-nowrap ${!visibleColumns['To'] ? 'hidden' : ''}`}>To</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-blue-300 text-xs whitespace-nowrap ${!visibleColumns['Desc'] ? 'hidden' : ''}`}>Desc</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-cyan-300 text-xs ${!visibleColumns['Type'] ? 'hidden' : ''}`}>Type</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-cyan-300 text-xs ${!visibleColumns['kW'] ? 'hidden' : ''}`}>kW</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-cyan-300 text-xs ${!visibleColumns['kV'] ? 'hidden' : ''}`}>kV</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-cyan-300 text-xs ${!visibleColumns['PF'] ? 'hidden' : ''}`}>PF</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-cyan-300 text-xs ${!visibleColumns['η'] ? 'hidden' : ''}`}>η</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-cyan-300 text-xs ${!visibleColumns['FLC'] ? 'hidden' : ''}`}>FLC</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-cyan-300 text-xs ${!visibleColumns['I_m'] ? 'hidden' : ''}`}>I_m</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-cyan-300 text-xs ${!visibleColumns['PF_m'] ? 'hidden' : ''}`}>PF_m</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-cyan-300 text-xs ${!visibleColumns['Inst'] ? 'hidden' : ''}`}>Inst</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-orange-300 text-xs ${!visibleColumns['Isc'] ? 'hidden' : ''}`}>Isc</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-orange-300 text-xs ${!visibleColumns['t'] ? 'hidden' : ''}`}>t</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-orange-300 text-xs ${!visibleColumns['Sz'] ? 'hidden' : ''}`}>Sz</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-orange-300 text-xs ${!visibleColumns['Meth'] ? 'hidden' : ''}`}>Meth</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-purple-300 text-xs ${!visibleColumns['Cores'] ? 'hidden' : ''}`}>Cores</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-purple-300 text-xs ${!visibleColumns['Sz2'] ? 'hidden' : ''}`}>Sz</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-purple-300 text-xs ${!visibleColumns['I'] ? 'hidden' : ''}`}>I</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-purple-300 text-xs ${!visibleColumns['R'] ? 'hidden' : ''}`}>R</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-purple-300 text-xs ${!visibleColumns['X'] ? 'hidden' : ''}`}>X</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-purple-300 text-xs ${!visibleColumns['L'] ? 'hidden' : ''}`}>L</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-green-300 text-xs ${!visibleColumns['K_t'] ? 'hidden' : ''}`}>K_t</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-green-300 text-xs ${!visibleColumns['I_d'] ? 'hidden' : ''}`}>I_d</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-green-300 text-xs ${!visibleColumns['Runs'] ? 'hidden' : ''}`}>Runs</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-green-300 text-xs ${!visibleColumns['OK'] ? 'hidden' : ''}`}>OK</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-green-300 text-xs ${!visibleColumns['K1'] ? 'hidden' : ''}`}>K1</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-green-300 text-xs ${!visibleColumns['K2'] ? 'hidden' : ''}`}>K2</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-green-300 text-xs ${!visibleColumns['K3'] ? 'hidden' : ''}`}>K3</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-green-300 text-xs ${!visibleColumns['K5'] ? 'hidden' : ''}`}>K5</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-green-300 text-xs ${!visibleColumns['K4'] ? 'hidden' : ''}`}>K4</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-red-300 text-xs ${!visibleColumns['ΔU'] ? 'hidden' : ''}`}>ΔU</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-red-300 text-xs ${!visibleColumns['%ΔU'] ? 'hidden' : ''}`}>%ΔU</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-red-300 text-xs ${!visibleColumns['OK2'] ? 'hidden' : ''}`}>OK</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-yellow-300 text-xs ${!visibleColumns['ΔU2'] ? 'hidden' : ''}`}>ΔU</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-yellow-300 text-xs ${!visibleColumns['%ΔU2'] ? 'hidden' : ''}`}>%ΔU</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-yellow-300 text-xs ${!visibleColumns['OK3'] ? 'hidden' : ''}`}>OK</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-slate-300 text-xs ${!visibleColumns['Description'] ? 'hidden' : ''}`}>Description</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-slate-300 text-xs ${!visibleColumns['Rem'] ? 'hidden' : ''}`}>Rem</th>
-              <th className={`border border-slate-600 px-1 py-0.5 text-slate-300 text-xs ${!visibleColumns['Status'] ? 'hidden' : ''}`}>Status</th>
+              {renderHeader('SL','text-blue-300')}
+              {renderHeader('Cable #','text-blue-300')}
+              {renderHeader('From','text-blue-300')}
+              {renderHeader('To','text-blue-300')}
+              {renderHeader('Desc','text-blue-300')}
+              {renderHeader('Type','text-cyan-300')}
+              {renderHeader('kW','text-cyan-300')}
+              {renderHeader('kV','text-cyan-300')}
+              {renderHeader('PF','text-cyan-300')}
+              {renderHeader('η','text-cyan-300')}
+              {renderHeader('FLC','text-cyan-300')}
+              {renderHeader('I_m','text-cyan-300')}
+              {renderHeader('PF_m','text-cyan-300')}
+              {renderHeader('Inst','text-cyan-300')}
+              {renderHeader('Isc','text-orange-300')}
+              {renderHeader('t','text-orange-300')}
+              {renderHeader('Sz','text-orange-300')}
+              {renderHeader('Meth','text-orange-300')}
+              {renderHeader('Cores','text-purple-300')}
+              {renderHeader('Sz2','text-purple-300')}
+              {renderHeader('I','text-purple-300')}
+              {renderHeader('R','text-purple-300')}
+              {renderHeader('X','text-purple-300')}
+              {renderHeader('L','text-purple-300')}
+              {renderHeader('K_t','text-green-300')}
+              {renderHeader('I_d','text-green-300')}
+              {renderHeader('Runs','text-green-300')}
+              {renderHeader('OK','text-green-300')}
+              {renderHeader('K1','text-green-300')}
+              {renderHeader('K2','text-green-300')}
+              {renderHeader('K3','text-green-300')}
+              {renderHeader('K5','text-green-300')}
+              {renderHeader('K4','text-green-300')}
+              {renderHeader('ΔU','text-red-300')}
+              {renderHeader('%ΔU','text-red-300')}
+              {renderHeader('OK2','text-red-300')}
+              {renderHeader('ΔU2','text-yellow-300')}
+              {renderHeader('%ΔU2','text-yellow-300')}
+              {renderHeader('OK3','text-yellow-300')}
+              {renderHeader('Description','text-slate-300')}
+              {renderHeader('Rem','text-slate-300')}
+              {renderHeader('Status','text-slate-300')}
             </tr>
           </thead>
 
@@ -793,11 +831,12 @@ const ResultsTab = () => {
             {results.map((r, idx) => (
               <tr
                 key={idx}
+                onClick={() => setHighlightedRow(highlightedRow === idx ? null : idx)}
                 className={`${idx % 2 === 0 ? 'bg-slate-800' : 'bg-slate-750'} hover:bg-slate-700/60 transition ${
                   r.status === 'FAILED' ? 'border-l-4 border-red-600' :
                   r.status === 'WARNING' ? 'border-l-4 border-yellow-600' :
                   'border-l-4 border-green-600'
-                }`}
+                } ${highlightedRow === idx ? 'ring-2 ring-cyan-500' : ''}`}
               >
                 <td className="border border-slate-600 px-1 py-0.5 text-center text-slate-200 font-semibold text-xs" style={{ display: visibleColumns['SL'] ? '' : 'none' }}>{r.slNo}</td>
                 <td className="border border-slate-600 px-1 py-0.5 text-slate-200 text-xs font-mono whitespace-nowrap" style={{ display: visibleColumns['Cable #'] ? '' : 'none' }}>{r.cableNumber}</td>
@@ -1021,6 +1060,42 @@ const ResultsTab = () => {
           <p className="text-slate-400">Redesign required</p>
         </div>
       </div>
+
+      {/* Header info modal */}
+      {infoHeader && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+          onClick={() => setInfoHeader(null)}
+        >
+          <div
+            className="bg-slate-800 p-6 rounded-lg max-w-md"
+            onClick={e => e.stopPropagation()}
+          >
+            <h4 className="text-lg font-bold text-white">{infoHeader}</h4>
+            <p className="text-slate-300 mt-2">
+              {headerInfoMap[infoHeader]?.full || 'No description available.'}
+            </p>
+            {headerInfoMap[infoHeader]?.formula && (
+              <p className="text-slate-300 mt-1 italic">Formula: {headerInfoMap[infoHeader].formula}</p>
+            )}
+            <button
+              className="mt-4 px-3 py-1 bg-cyan-600 rounded"
+              onClick={() => setInfoHeader(null)}
+            >Close</button>
+          </div>
+        </div>
+      )}
+
+      {/* Row formula highlight info */}
+      {highlightedRow !== null && (
+        <div className="bg-blue-900/20 border border-blue-600 rounded-lg p-4 mt-2 text-sm text-blue-300">
+          <p>
+            Row <strong>{highlightedRow + 1}</strong> calculations are driven by the following columns:
+            {formulaColumns.join(', ')}
+          </p>
+          <p className="mt-1 italic">Click the same row to clear highlight.</p>
+        </div>
+      )}
     </div>
   );
 };

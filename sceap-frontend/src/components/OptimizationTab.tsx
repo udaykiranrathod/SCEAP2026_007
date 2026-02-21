@@ -126,32 +126,47 @@ const OptimizationTab = () => {
                 {/* Complete cable chain with all intermediate stops */}
                 {path.cables && path.cables.length > 0 ? (
                   <>
-                    {path.cables.map((cable, idx) => (
-                      <div key={idx} className="flex items-center gap-1">
-                        {/* Arrow */}
-                        <div className="flex flex-col items-center justify-center px-2">
-                          <ArrowRight className="text-cyan-400 flex-shrink-0" size={18} />
-                          <span className="text-cyan-300 text-xs font-bold mt-1 whitespace-nowrap">
-                            {cable.parallelCount && cable.parallelCount > 1
-                              ? `${cable.originalCables?.join(', ')} (${cable.parallelCount} runs)`
-                              : cable.cableNumber}
-                          </span>
-                          <span className="text-slate-400 text-xs">({cable.length.toFixed(1)}m)</span>
-                        </div>
-                        
-                        {/* Intermediate Bus/Panel */}
-                        <div className={`px-3 py-2 rounded-lg text-white min-w-max border-2 font-semibold shadow-lg ${
-                          idx === path.cables.length - 1 
-                            ? 'bg-purple-900/60 border-purple-400' 
-                            : 'bg-blue-900/60 border-blue-400'
-                        }`}>
-                          <div className="text-sm">{cable.toBus}</div>
-                          {cable.feederDescription && (
-                            <div className="text-slate-200 text-xs mt-0.5">{cable.feederDescription}</div>
+                    {path.cables.map((cable, idx) => {
+                      const detail = path.voltageDropDetails?.[idx];
+                      return (
+                        <div key={idx} className="flex items-center gap-1 justify-between w-full">
+                          <div className="flex items-center gap-1">
+                            {/* Arrow */}
+                            <div className="flex flex-col items-center justify-center px-2">
+                              <ArrowRight className="text-cyan-400 flex-shrink-0" size={18} />
+                              <span className="text-cyan-300 text-xs font-bold mt-1 whitespace-nowrap">
+                                {cable.parallelCount && cable.parallelCount > 1
+                                  ? `${cable.originalCables?.join(', ')} (${cable.parallelCount} runs)`
+                                  : cable.cableNumber}
+                              </span>
+                              <span className="text-slate-400 text-xs">({cable.length.toFixed(1)}m)</span>
+                            </div>
+                            
+                            {/* Intermediate Bus/Panel */}
+                            <div className={`px-3 py-2 rounded-lg text-white min-w-max border-2 font-semibold shadow-lg ${
+                              idx === path.cables.length - 1 
+                                ? 'bg-purple-900/60 border-purple-400' 
+                                : 'bg-blue-900/60 border-blue-400'
+                            }`}>
+                              <div className="text-sm">{cable.toBus}</div>
+                              {cable.feederDescription && (
+                                <div className="text-slate-200 text-xs mt-0.5">{cable.feederDescription}</div>
+                              )}
+                            </div>
+                          </div>
+                          {/* Right side calculation box */}
+                          {detail && (
+                            <div className="ml-4 text-xs text-slate-300 w-56 bg-slate-800/50 rounded p-2">
+                              <div><strong>Size:</strong> {detail.size}mm²</div>
+                              <div><strong>R:</strong> {detail.resistance.toFixed(3)}Ω/km</div>
+                              <div><strong>Drop:</strong> {detail.drop.toFixed(3)}V</div>
+                              <div><strong>Runs:</strong> {detail.numberOfRuns ?? 1} {detail.numberOfRuns && detail.numberOfRuns > 1 ? `(×${detail.sizePerRun}mm²)` : ''}</div>
+                              <div className="mt-1 italic">{detail.formula}</div>
+                            </div>
                           )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                     
                     {/* Transformer endpoint */}
                     <div className="flex items-center gap-1">
@@ -201,6 +216,7 @@ const OptimizationTab = () => {
               </div>
             </div>
 
+
             {/* Voltage Drop Info */}
             <div className={`p-3 rounded ${
               path.isValid
@@ -208,7 +224,7 @@ const OptimizationTab = () => {
                 : 'bg-red-900/20 border border-red-600'
             }`}>
               <p className={`font-semibold text-sm ${path.isValid ? 'text-green-300' : 'text-red-300'}`}>
-                Voltage Drop: {path.voltageDropPercent.toFixed(2)}% {path.isValid ? '✓' : '✗'}
+                Voltage Drop: {path.voltageDrop.toFixed(3)} V ({path.voltageDropPercent.toFixed(2)}%) {path.isValid ? '✓' : '✗'}
               </p>
               <p className={`text-xs mt-1 ${path.isValid ? 'text-green-300/80' : 'text-red-300/80'}`}>
                 {path.validationMessage}
