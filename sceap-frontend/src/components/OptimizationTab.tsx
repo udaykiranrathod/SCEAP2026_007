@@ -126,47 +126,32 @@ const OptimizationTab = () => {
                 {/* Complete cable chain with all intermediate stops */}
                 {path.cables && path.cables.length > 0 ? (
                   <>
-                    {path.cables.map((cable, idx) => {
-                      const detail = path.voltageDropDetails?.[idx];
-                      return (
-                        <div key={idx} className="flex items-center gap-1 justify-between w-full">
-                          <div className="flex items-center gap-1">
-                            {/* Arrow */}
-                            <div className="flex flex-col items-center justify-center px-2">
-                              <ArrowRight className="text-cyan-400 flex-shrink-0" size={18} />
-                              <span className="text-cyan-300 text-xs font-bold mt-1 whitespace-nowrap">
-                                {cable.parallelCount && cable.parallelCount > 1
-                                  ? `${cable.originalCables?.join(', ')} (${cable.parallelCount} runs)`
-                                  : cable.cableNumber}
-                              </span>
-                              <span className="text-slate-400 text-xs">({cable.length.toFixed(1)}m)</span>
-                            </div>
-                            
-                            {/* Intermediate Bus/Panel */}
-                            <div className={`px-3 py-2 rounded-lg text-white min-w-max border-2 font-semibold shadow-lg ${
-                              idx === path.cables.length - 1 
-                                ? 'bg-purple-900/60 border-purple-400' 
-                                : 'bg-blue-900/60 border-blue-400'
-                            }`}>
-                              <div className="text-sm">{cable.toBus}</div>
-                              {cable.feederDescription && (
-                                <div className="text-slate-200 text-xs mt-0.5">{cable.feederDescription}</div>
-                              )}
-                            </div>
-                          </div>
-                          {/* Right side calculation box */}
-                          {detail && (
-                            <div className="ml-4 text-xs text-slate-300 w-56 bg-slate-800/50 rounded p-2">
-                              <div><strong>Size:</strong> {detail.size}mm²</div>
-                              <div><strong>R:</strong> {detail.resistance.toFixed(3)}Ω/km</div>
-                              <div><strong>Drop:</strong> {detail.drop.toFixed(3)}V</div>
-                              <div><strong>Runs:</strong> {detail.numberOfRuns ?? 1} {detail.numberOfRuns && detail.numberOfRuns > 1 ? `(×${detail.sizePerRun}mm²)` : ''}</div>
-                              <div className="mt-1 italic">{detail.formula}</div>
-                            </div>
+                    {path.cables.map((cable, idx) => (
+                      <div key={idx} className="flex items-center gap-1">
+                        {/* Arrow */}
+                        <div className="flex flex-col items-center justify-center px-2">
+                          <ArrowRight className="text-cyan-400 flex-shrink-0" size={18} />
+                          <span className="text-cyan-300 text-xs font-bold mt-1 whitespace-nowrap">
+                            {cable.parallelCount && cable.parallelCount > 1
+                              ? `${cable.originalCables?.join(', ')} (${cable.parallelCount} runs)`
+                              : cable.cableNumber}
+                          </span>
+                          <span className="text-slate-400 text-xs">({cable.length.toFixed(1)}m)</span>
+                        </div>
+                        
+                        {/* Intermediate Bus/Panel */}
+                        <div className={`px-3 py-2 rounded-lg text-white min-w-max border-2 font-semibold shadow-lg ${
+                          idx === path.cables.length - 1 
+                            ? 'bg-purple-900/60 border-purple-400' 
+                            : 'bg-blue-900/60 border-blue-400'
+                        }`}>
+                          <div className="text-sm">{cable.toBus}</div>
+                          {cable.feederDescription && (
+                            <div className="text-slate-200 text-xs mt-0.5">{cable.feederDescription}</div>
                           )}
                         </div>
-                      );
-                    })}
+                      </div>
+                    ))}
                     
                     {/* Transformer endpoint */}
                     <div className="flex items-center gap-1">
@@ -219,47 +204,78 @@ const OptimizationTab = () => {
 
             {/* Voltage Drop Info */}
             <div className={`p-3 rounded ${
-              path.isValid
-                ? 'bg-green-900/20 border border-green-600'
-                : 'bg-red-900/20 border border-red-600'
+              path.voltageDropPercent > 5
+                ? 'bg-red-900/20 border border-red-600'
+                : 'bg-green-900/20 border border-green-600'
             }`}>
-              <p className={`font-semibold text-sm ${path.isValid ? 'text-green-300' : 'text-red-300'}`}>
-                Voltage Drop: {path.voltageDrop.toFixed(3)} V ({path.voltageDropPercent.toFixed(2)}%) {path.isValid ? '✓' : '✗'}
+              <p className={`font-semibold text-sm ${path.voltageDropPercent > 5 ? 'text-red-300' : 'text-green-300'}`}>
+                Voltage Drop: {path.voltageDrop.toFixed(3)} V ({path.voltageDropPercent.toFixed(2)}%) {path.voltageDropPercent > 5 ? '✗' : '✓'}
               </p>
-              <p className={`text-xs mt-1 ${path.isValid ? 'text-green-300/80' : 'text-red-300/80'}`}>
-                {path.validationMessage}
+              <p className={`text-xs mt-1 ${path.voltageDropPercent > 5 ? 'text-red-300/80' : 'text-green-300/80'}`}>
+                {path.voltageDropPercent > 5
+                  ? `⚠ Exceeds 5% limit — Voltage drop is ${path.voltageDropPercent.toFixed(2)}%, optimize cable sizing`
+                  : `✓ V-drop ${path.voltageDropPercent.toFixed(2)}% (IEC 60364 Compliant)`}
               </p>
             </div>
 
-            {/* Expanded Cable Details */}
+            {/* Expanded Cable Details with calculation boxes */}
             {selectedPath === path.pathId && (
               <div className="mt-4 pt-4 border-t border-slate-700">
-                <h5 className="text-white font-medium mb-3">Cable Details (Step by Step)</h5>
-                <div className="space-y-2 max-h-80 overflow-y-auto">
-                  {path.cables.map((cable, idx) => (
-                    <div key={idx} className="bg-slate-700/50 rounded p-3 text-sm border-l-4 border-cyan-500">
-                      <div className="flex justify-between items-start mb-3">
-                        <div>
-                          <span className="text-white font-bold text-base">Step {idx + 1}:</span>
-                          <span className="text-cyan-300 font-medium ml-2">{cable.cableNumber}</span>
+                <h5 className="text-white font-medium mb-3">Cable Voltage Drop Calculations</h5>
+                <div className="space-y-3">
+                  {path.cables.map((cable, idx) => {
+                    const detail = path.voltageDropDetails?.[idx];
+                    return (
+                      <div key={idx} className="bg-slate-700/50 rounded p-4 text-sm border-l-4 border-cyan-500 space-y-2">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className="text-white font-bold text-base">Step {idx + 1}: </span>
+                            <span className="text-cyan-300 font-medium">{cable.cableNumber}</span>
+                          </div>
+                          <span className="text-slate-400 text-xs">#{cable.serialNo}</span>
                         </div>
-                        <span className="text-slate-400 text-xs">#{cable.serialNo}</span>
+                        {cable.feederDescription && (
+                          <p className="text-yellow-300 text-xs italic">📋 {cable.feederDescription}</p>
+                        )}
+                        <div className="grid grid-cols-2 gap-2 text-xs text-slate-300 py-2">
+                          <p>From: <span className="text-cyan-300 font-medium">{cable.fromBus}</span></p>
+                          <p>To: <span className="text-cyan-300 font-medium">{cable.toBus}</span></p>
+                          <p>Length: <span className="text-green-300">{cable.length}m</span></p>
+                          <p>Load: <span className="text-green-300">{cable.loadKW}kW</span></p>
+                          <p>Voltage: <span className="text-green-300">{cable.voltage}V</span></p>
+                          <p>PF: <span className="text-green-300">{(cable.powerFactor || 0.85).toFixed(2)}</span></p>
+                        </div>
+                        {/* White calculation box */}
+                        {detail && (
+                          <div className="bg-white/10 border border-white/20 rounded p-3 mt-2 space-y-1">
+                            <div className="text-cyan-200 font-semibold mb-2">Voltage Drop Calculation</div>
+                            <div className="text-slate-200 text-xs space-y-1">
+                              <div><strong>Cable Size:</strong> {detail.size}mm²</div>
+                              <div><strong>Resistance (90°C):</strong> {detail.resistance.toFixed(3)}Ω/km</div>
+                              <div><strong>Current (Running):</strong> {detail.current.toFixed(2)}A</div>
+                              <div><strong>Derated Current:</strong> {detail.deratedCurrent.toFixed(2)}A</div>
+                              <div><strong>Length:</strong> {cable.length}m</div>
+                              <div className="pt-1 border-t border-white/20 mt-1">
+                                <div className="italic text-yellow-300">{detail.formula}</div>
+                              </div>
+                              <div className="pt-1 border-t border-white/20 mt-1">
+                                <strong className="text-green-300">Individual Drop: {detail.drop.toFixed(3)}V</strong>
+                              </div>
+                              {(detail.numberOfRuns ?? 1) > 1 && (
+                                <div className="text-orange-300 text-xs pt-1">
+                                  <strong>Parallel Runs:</strong> {detail.numberOfRuns} × {detail.sizePerRun}mm² (since {detail.size}mm² exceeds single cable limit)
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      {cable.feederDescription && (
-                        <p className="text-yellow-300 text-xs mb-2 italic">
-                          📋 {cable.feederDescription}
-                        </p>
-                      )}
-                      <div className="grid grid-cols-2 gap-2 text-xs text-slate-300">
-                        <p>From Bus: <span className="text-cyan-300 font-medium">{cable.fromBus}</span></p>
-                        <p>To Bus: <span className="text-cyan-300 font-medium">{cable.toBus}</span></p>
-                        <p>Length: <span className="text-green-300">{cable.length}m</span></p>
-                        <p>Load: <span className="text-green-300">{cable.loadKW}kW</span></p>
-                        <p>Voltage: <span className="text-green-300">{cable.voltage}V</span></p>
-                        <p>Derating: <span className="text-orange-300">{(cable.deratingFactor * 100).toFixed(0)}%</span></p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
+                  <div className="bg-slate-700/70 rounded p-3 mt-2 border border-cyan-400/40">
+                    <div className="text-white font-semibold">Path Total</div>
+                    <div className="text-cyan-300 text-sm mt-1">Total Voltage Drop = Sum of all cable drops = <strong>{path.voltageDrop.toFixed(3)}V ({path.voltageDropPercent.toFixed(2)}%)</strong></div>
+                  </div>
                 </div>
               </div>
             )}

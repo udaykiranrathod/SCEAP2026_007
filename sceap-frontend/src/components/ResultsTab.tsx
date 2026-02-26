@@ -271,6 +271,9 @@ const ResultsTab = () => {
   // header info and formula highlighting
   const [infoHeader, setInfoHeader] = useState<string | null>(null);
   const [highlightedRow, setHighlightedRow] = useState<number | null>(null);
+  
+  // Formula viewer state
+  const [selectedCell, setSelectedCell] = useState<{ rowIdx: number; fieldKey: string; fieldLabel: string } | null>(null);
 
   const headerInfoMap: Record<string, { full: string; formula?: string }> = {
     SL: { full: 'Serial number corresponding to the Excel row' },
@@ -669,6 +672,127 @@ const ResultsTab = () => {
     alert('All edits saved successfully!');
   };
 
+  // Build formula breakdown for selected cell
+  const buildFormulaBreakdown = (rowIdx: number, fieldKey: string) => {
+    if (!results[rowIdx]) return null;
+    
+    const row = results[rowIdx];
+    const cable = normalizedFeeders?.[rowIdx];
+    if (!cable) return null;
+
+    const pf = cable.powerFactor ?? 0.85;
+    const eff = cable.efficiency ?? 0.95;
+    const v_kV = cable.voltage / 1000;
+
+    // Formula breakdowns for each calculated field
+    const formulas: Record<string, any> = {
+      flc_A: {
+        label: 'Full Load Current (FLC)',
+        formula: row.feederType === 'M' 
+          ? 'FLC = P / (√3 × V × PF × η)'
+          : 'FLC = P / (√3 × V × PF)',
+        values: [
+          { label: 'Power (P)', value: `${cable.loadKW} kW` },
+          { label: 'Voltage (V)', value: `${v_kV.toFixed(2)} kV` },
+          { label: 'Power Factor (PF)', value: `${pf.toFixed(2)}` },
+          row.feederType === 'M' ? { label: 'Efficiency (η)', value: `${(eff * 100).toFixed(0)}%` } : null,
+          { label: '√3', value: '1.732' }
+        ].filter(Boolean),
+        calculation: `${cable.loadKW} / (1.732 × ${v_kV.toFixed(2)} × ${pf.toFixed(2)}${row.feederType === 'M' ? ` × ${eff.toFixed(2)}` : ''})`,
+        result: `${row.flc_A.toFixed(2)} A`
+      },
+      motorStartingCurrent_A: {
+        label: 'Motor Starting Current',
+        formula: row.feederType === 'M' ? 'I_start = 7.2 × FLC' : 'N/A (Feeder only)',
+        values: [
+          { label: 'FLC', value: `${row.flc_A.toFixed(2)} A` },
+          { label: 'Multiplier', value: '7.2×' }
+        ],
+        calculation: `7.2 × ${row.flc_A.toFixed(2)}`,
+        result: `${row.motorStartingCurrent_A.toFixed(2)} A`
+      },
+      minSizeShortCircuit_sqmm: {
+        label: 'Minimum Size (Short Circuit)',
+        formula: 'S = (Isc × √t) / 94',
+        values: [
+          { label: 'Short Circuit Current (Isc)', value: `${row.scCurrentSwitchboard_kA.toFixed(0)} kA` },
+          { label: 'Withstand Time (t)', value: `${row.scCurrentWithstandDuration_Sec} s` }
+        ],
+        calculation: `(${(row.scCurrentSwitchboard_kA * 1000).toFixed(0)} × √${row.scCurrentWithstandDuration_Sec}) / 94`,
+        result: `${row.minSizeShortCircuit_sqmm.toFixed(2)} mm²`
+      },
+      numberOfRuns: {
+        label: 'Number of Parallel Runs',
+        formula: 'Runs = ceil(selectedSize / maxSingleCableSize)',
+        values: [
+          { label: 'Selected Size', value: `${row.cableSize_sqmm} mm²` },
+          { label: 'Max Single Cable', value: `${catalogueData ? Object.keys(catalogueData).map(k => parseInt(k)).filter(n => !isNaN(n)).sort((a, b) => a - b)[Object.keys(catalogueData).map(k => parseInt(k)).filter(n => !isNaN(n)).sort((a, b) => a - b).length - 1] : 400} mm²` }
+        ],
+        calculation: `ceil(${row.cableSize_sqmm} / 400)`,
+        result: `${row.numberOfRuns} run(s)`
+      },
+      capacityCheck: {
+        label: 'Capacity Verification',
+        formula: 'Check: (Derated Rating × Runs) ≥ FLC',
+        values: [
+          { label: 'Derated Rating', value: `${row.derated_currentCarryingCapacity_A.toFixed(2)} A` },
+          { label: 'FLC', value: `${row.flc_A.toFixed(2)} A` }
+        ],
+        calculation: `${row.derated_currentCarryingCapacity_A.toFixed(2)} ≥ ${row.flc_A.toFixed(2)} ?`,
+        result: row.capacityCheck
+      },
+      runningVoltageDrop_V: {
+        label: 'Running Voltage Drop',
+        formula: 'ΔU = (√3 × I × R × L) / 1000',
+        values: [
+          { label: 'Current (I)', value: `${row.flc_A.toFixed(2)} A` },
+          { label: 'Resistance (R)', value: `${row.cableResistance_90C_Ohm_Ph_km.toFixed(4)} Ω/km` },
+          { label: 'Length (L)', value: `${cable.length} m` }
+        ],
+        calculation: `(1.732 × ${row.flc_A.toFixed(2)} × ${row.cableResistance_90C_Ohm_Ph_km.toFixed(4)} × ${cable.length}) / 1000`,
+        result: `${row.runningVoltageDrop_V.toFixed(3)} V (${row.runningVoltageDrop_percent.toFixed(2)}%)`
+      },
+      runningVoltageDrop_percent: {
+        label: 'Running Voltage Drop %',
+        formula: '%ΔU = (ΔU / Vnom) × 100',
+        values: [
+          { label: 'Voltage Drop (ΔU)', value: `${row.runningVoltageDrop_V.toFixed(3)} V` },
+          { label: 'Nominal Voltage', value: `${cable.voltage} V` }
+        ],
+        calculation: `(${row.runningVoltageDrop_V.toFixed(3)} / ${cable.voltage}) × 100`,
+        result: `${row.runningVoltageDrop_percent.toFixed(2)}%`
+      },
+      runningVoltageDropCheck: {
+        label: 'Running Voltage Drop Compliance',
+        formula: '%ΔU ≤ 3% (IEC 60364)',
+        values: [
+          { label: 'Measured Drop', value: `${row.runningVoltageDrop_percent.toFixed(2)}%` },
+          { label: 'Limit', value: '3%' }
+        ],
+        calculation: `${row.runningVoltageDrop_percent.toFixed(2)}% ≤ 3% ?`,
+        result: row.runningVoltageDropCheck
+      },
+      startingVoltageDip_V: {
+        label: 'Starting Voltage Dip (Motors)',
+        formula: 'ΔU_start = (√3 × I_start × R × L) / 1000',
+        values: row.feederType === 'M' ? [
+          { label: 'Starting Current', value: `${row.motorStartingCurrent_A.toFixed(2)} A` },
+          { label: 'Resistance', value: `${row.cableResistance_90C_Ohm_Ph_km.toFixed(4)} Ω/km` },
+          { label: 'Length', value: `${cable.length} m` }
+        ] : [{ label: 'Type', value: 'N/A (Feeder)' }],
+        calculation: row.feederType === 'M' ? `(1.732 × ${row.motorStartingCurrent_A.toFixed(2)} × ${row.cableResistance_90C_Ohm_Ph_km.toFixed(4)} × ${cable.length}) / 1000` : 'N/A',
+        result: row.feederType === 'M' ? `${row.startingVoltageDip_V.toFixed(3)} V (${row.startingVoltageDip_percent.toFixed(2)}%)` : 'N/A'
+      }
+    };
+
+    return formulas[fieldKey] || null;
+  };
+
+  // Handle cell click to show formula viewer
+  const handleCellClick = (rowIdx: number, fieldKey: string, fieldLabel: string) => {
+    setSelectedCell({ rowIdx, fieldKey, fieldLabel });
+  };
+
   if (results.length === 0) {
     return (
       <div className="bg-yellow-900/30 border border-yellow-600 rounded-lg p-8 text-center">
@@ -713,6 +837,55 @@ const ResultsTab = () => {
         )}
         
         <div className="flex-1" />
+
+        {/* Formula Viewer Box */}
+        {selectedCell && results[selectedCell.rowIdx] && (
+          <div className="bg-slate-700/70 border border-cyan-500 rounded px-3 py-2 flex-1 max-w-md">
+            {(() => {
+              const formulaData = buildFormulaBreakdown(selectedCell.rowIdx, selectedCell.fieldKey);
+              if (!formulaData) {
+                return (
+                  <div className="text-xs text-slate-300">
+                    <p className="font-semibold text-cyan-300">{selectedCell.fieldLabel}</p>
+                    <p className="text-slate-400">No formula available for this cell</p>
+                  </div>
+                );
+              }
+              return (
+                <div className="text-xs space-y-1 max-h-32 overflow-auto">
+                  <p className="font-semibold text-cyan-300">{formulaData.label}</p>
+                  <p className="text-yellow-300 bg-slate-800/50 p-1 rounded font-mono text-xs">{formulaData.formula}</p>
+                  {formulaData.values && formulaData.values.length > 0 && (
+                    <div className="bg-slate-800/30 p-1 rounded border border-slate-600">
+                      {formulaData.values.map((v: any, i: number) => (
+                        <div key={i} className="flex justify-between gap-2">
+                          <span className="text-slate-300">{v.label}:</span>
+                          <span className="text-green-300 font-mono">{v.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {formulaData.calculation && (
+                    <div className="border-t border-slate-600 pt-1">
+                      <p className="text-slate-400">Calculation:</p>
+                      <p className="font-mono text-cyan-300 text-xs bg-slate-800/50 p-1 rounded break-words">{formulaData.calculation}</p>
+                    </div>
+                  )}
+                  <div className="border-t border-slate-600 pt-1 bg-slate-800/50 p-1 rounded">
+                    <p className="text-slate-300">Result:</p>
+                    <p className="text-green-300 font-bold text-sm">{formulaData.result}</p>
+                  </div>
+                  <button
+                    onClick={() => setSelectedCell(null)}
+                    className="text-xs text-slate-400 hover:text-slate-300 mt-1 w-full text-center"
+                  >
+                    ✕ Close
+                  </button>
+                </div>
+              );
+            })()}
+          </div>
+        )}
         
         <button
           onClick={handleExportExcel}
@@ -889,8 +1062,8 @@ const ResultsTab = () => {
                   )}
                 </td>
 
-                <td className="border border-slate-600 px-1 py-0.5 text-center bg-cyan-950/40 text-cyan-300 font-bold text-xs" style={{ display: visibleColumns['FLC'] ? '' : 'none' }}>{r.flc_A.toFixed(2)}</td>
-                <td className="border border-slate-600 px-1 py-0.5 text-center bg-cyan-950/20 text-slate-200 font-mono text-xs" style={{ display: visibleColumns['I_m'] ? '' : 'none' }}>{r.motorStartingCurrent_A.toFixed(2)}</td>
+                <td className="border border-slate-600 px-1 py-0.5 text-center bg-cyan-950/40 text-cyan-300 font-bold text-xs cursor-pointer hover:ring-2 hover:ring-cyan-400" onClick={() => handleCellClick(idx, 'flc_A', 'FLC')} style={{ display: visibleColumns['FLC'] ? '' : 'none' }}>{r.flc_A.toFixed(2)}</td>
+                <td className="border border-slate-600 px-1 py-0.5 text-center bg-cyan-950/20 text-slate-200 font-mono text-xs cursor-pointer hover:ring-2 hover:ring-cyan-400" onClick={() => handleCellClick(idx, 'motorStartingCurrent_A', 'Starting Current')} style={{ display: visibleColumns['I_m'] ? '' : 'none' }}>{r.motorStartingCurrent_A.toFixed(2)}</td>
                 <td className="border border-slate-600 px-1 py-0.5 text-center bg-cyan-950/20 text-slate-200 font-mono text-xs" style={{ display: visibleColumns['PF_m'] ? '' : 'none' }}>{r.motorStartingPF.toFixed(2)}</td>
 
                 {/* Installation - Editable */}
@@ -904,7 +1077,7 @@ const ResultsTab = () => {
 
                 <td className="border border-slate-600 px-1 py-0.5 text-center bg-orange-950/20 text-slate-200 font-mono text-xs" style={{ display: visibleColumns['Isc'] ? '' : 'none' }}>{r.scCurrentSwitchboard_kA.toFixed(2)}</td>
                 <td className="border border-slate-600 px-1 py-0.5 text-center bg-orange-950/20 text-slate-200 font-mono text-xs" style={{ display: visibleColumns['t'] ? '' : 'none' }}>{r.scCurrentWithstandDuration_Sec.toFixed(2)}</td>
-                <td className="border border-slate-600 px-1 py-0.5 text-center bg-orange-950/20 text-slate-200 font-mono text-xs" style={{ display: visibleColumns['Sz'] ? '' : 'none' }}>{r.minSizeShortCircuit_sqmm.toFixed(0)}</td>
+                <td className="border border-slate-600 px-1 py-0.5 text-center bg-orange-950/20 text-slate-200 font-mono text-xs cursor-pointer hover:ring-2 hover:ring-orange-400" onClick={() => handleCellClick(idx, 'minSizeShortCircuit_sqmm', 'Min Size (SC)')} style={{ display: visibleColumns['Sz'] ? '' : 'none' }}>{r.minSizeShortCircuit_sqmm.toFixed(0)}</td>
                 <td className="border border-slate-600 px-1 py-0.5 text-center bg-orange-950/20 text-slate-200 text-xs" style={{ display: visibleColumns['Meth'] ? '' : 'none' }}>AIR</td>
 
                 {/* Cores - Editable Dropdown */}
@@ -942,7 +1115,7 @@ const ResultsTab = () => {
                 <td className="border border-slate-600 px-1 py-0.5 text-center bg-green-950/40 text-cyan-300 font-bold text-xs" style={{ display: visibleColumns['I_d'] ? '' : 'none' }}>{r.derated_currentCarryingCapacity_A.toFixed(1)}</td>
 
                 {/* Number of Runs - Editable Numerical */}
-                <td className="border border-slate-600 px-1 py-0.5 text-center bg-green-950/20" style={{ display: visibleColumns['Runs'] ? '' : 'none' }}>
+                <td className="border border-slate-600 px-1 py-0.5 text-center bg-green-950/20 cursor-pointer hover:ring-2 hover:ring-green-400" style={{ display: visibleColumns['Runs'] ? '' : 'none' }} onClick={() => handleCellClick(idx, 'numberOfRuns', 'Parallel Runs')}>
                   {globalEditMode ? (
                     <EditableCell value={r.numberOfRuns} type="number" editable={true} onChange={(val) => handleCellChange(idx, 'numberOfRuns', val)} precision={0} width="w-12" />
                   ) : (
@@ -956,10 +1129,10 @@ const ResultsTab = () => {
                 <td className="border border-slate-600 px-1 py-0.5 text-center bg-green-950/20 text-slate-200 font-mono text-xs text-xs" style={{ display: visibleColumns['K3'] ? '' : 'none' }}>{r.k3_groundTemp.toFixed(3)}</td>
                 <td className="border border-slate-600 px-1 py-0.5 text-center bg-green-950/20 text-slate-200 font-mono text-xs text-xs" style={{ display: visibleColumns['K5'] ? '' : 'none' }}>{r.k5_thermalResistivity.toFixed(3)}</td>
                 <td className="border border-slate-600 px-1 py-0.5 text-center bg-green-950/20 text-slate-200 font-mono text-xs text-xs" style={{ display: visibleColumns['K4'] ? '' : 'none' }}>{r.k4_depthOfLaying.toFixed(3)}</td>
-                <td className="border border-slate-600 px-1 py-0.5 text-center bg-red-950/20 text-slate-200 font-mono text-xs" style={{ display: visibleColumns['ΔU'] ? '' : 'none' }}>{r.runningVoltageDrop_V.toFixed(2)}</td>
-                <td className={`border border-slate-600 px-1 py-0.5 text-center font-bold text-xs ${r.runningVoltageDrop_percent <= 3 ? 'text-green-300 bg-green-950/40' : 'text-red-300 bg-red-950/40'}`} style={{ display: visibleColumns['%ΔU'] ? '' : 'none' }}>{r.runningVoltageDrop_percent.toFixed(2)}</td>
+                <td className="border border-slate-600 px-1 py-0.5 text-center bg-red-950/20 text-slate-200 font-mono text-xs cursor-pointer hover:ring-2 hover:ring-red-400" style={{ display: visibleColumns['ΔU'] ? '' : 'none' }} onClick={() => handleCellClick(idx, 'runningVoltageDrop_V', 'Running Voltage Drop')}>{r.runningVoltageDrop_V.toFixed(2)}</td>
+                <td className={`border border-slate-600 px-1 py-0.5 text-center font-bold text-xs cursor-pointer hover:ring-2 ${r.runningVoltageDrop_percent <= 3 ? 'text-green-300 bg-green-950/40 hover:ring-green-400' : 'text-red-300 bg-red-950/40 hover:ring-red-400'}`} style={{ display: visibleColumns['%ΔU'] ? '' : 'none' }} onClick={() => handleCellClick(idx, 'runningVoltageDrop_percent', 'Running V-drop %')}>{r.runningVoltageDrop_percent.toFixed(2)}</td>
                 <td className={`border border-slate-600 px-1 py-0.5 text-center font-bold text-xs ${r.runningVoltageDropCheck === 'YES' ? 'text-green-300' : 'text-red-300'}`} style={{ display: visibleColumns['OK2'] ? '' : 'none' }}>{r.runningVoltageDropCheck}</td>
-                <td className="border border-slate-600 px-1 py-0.5 text-center bg-yellow-950/20 text-slate-200 font-mono text-xs" style={{ display: visibleColumns['ΔU2'] ? '' : 'none' }}>{r.startingVoltageDip_V.toFixed(2)}</td>
+                <td className="border border-slate-600 px-1 py-0.5 text-center bg-yellow-950/20 text-slate-200 font-mono text-xs cursor-pointer hover:ring-2 hover:ring-yellow-400" style={{ display: visibleColumns['ΔU2'] ? '' : 'none' }} onClick={() => handleCellClick(idx, 'startingVoltageDip_V', 'Starting V-dip')}>{r.startingVoltageDip_V.toFixed(2)}</td>
                 <td className="border border-slate-600 px-1 py-0.5 text-center bg-yellow-950/20 text-slate-200 font-mono text-xs" style={{ display: visibleColumns['%ΔU2'] ? '' : 'none' }}>{r.startingVoltageDropCheck === 'NA' ? 'NA' : r.startingVoltageDip_percent.toFixed(2)}</td>
                 <td className={`border border-slate-600 px-1 py-0.5 text-center font-bold text-xs ${r.startingVoltageDropCheck === 'YES' ? 'text-green-300' : r.startingVoltageDropCheck === 'NA' ? 'text-slate-400' : 'text-red-300'}`} style={{ display: visibleColumns['OK3'] ? '' : 'none' }}>{r.startingVoltageDropCheck}</td>
                 <td className="border border-slate-600 px-1 py-0.5 text-slate-300 truncate text-xs max-w-xs" style={{ display: visibleColumns['Description'] ? '' : 'none' }}>{r.cableDesignation}</td>
