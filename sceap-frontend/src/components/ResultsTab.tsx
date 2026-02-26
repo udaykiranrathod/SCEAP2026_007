@@ -806,134 +806,147 @@ const ResultsTab = () => {
   return (
     <div className="space-y-6">
       {/* Controls Bar */}
-      <div className="bg-slate-800 rounded-lg p-4 border border-slate-700 flex gap-2 items-center flex-wrap">
-        <button
-          onClick={() => setGlobalEditMode(!globalEditMode)}
-          className={`${globalEditMode ? 'bg-blue-600 hover:bg-blue-500' : 'bg-slate-600 hover:bg-slate-500'} text-white px-3 py-2 rounded flex items-center gap-2 transition text-sm`}
-        >
-          <Edit2 size={16} />
-          {globalEditMode ? 'Editing ON' : 'Edit Mode'}
-        </button>
-        
-        {globalEditMode && (
-          <>
-            <button
-              onClick={handleSaveEdits}
-              className="bg-green-600 hover:bg-green-500 text-white px-3 py-2 rounded flex items-center gap-2 transition text-sm"
-            >
-              ✓ Save Changes
-            </button>
-            <button
-              onClick={() => window.location.reload()}
-              className="bg-slate-500 hover:bg-slate-400 text-white px-3 py-2 rounded flex items-center gap-2 transition text-sm"
-            >
-              <RotateCcw size={16} />
-              Discard
-            </button>
-            <div className="text-xs text-blue-300 px-2 py-1 bg-blue-900/30 rounded border border-blue-700">
-              ✏️ Click cells to edit. Type/Size/Runs/Remarks are editable.
-            </div>
-          </>
-        )}
-        
-        <div className="flex-1" />
+      <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+        {/* Button Row */}
+        <div className="flex gap-2 items-center flex-wrap mb-3">
+          <button
+            onClick={() => setGlobalEditMode(!globalEditMode)}
+            className={`${globalEditMode ? 'bg-blue-600 hover:bg-blue-500' : 'bg-slate-600 hover:bg-slate-500'} text-white px-3 py-2 rounded flex items-center gap-2 transition text-sm`}
+          >
+            <Edit2 size={16} />
+            {globalEditMode ? 'Editing ON' : 'Edit Mode'}
+          </button>
+          
+          {globalEditMode && (
+            <>
+              <button
+                onClick={handleSaveEdits}
+                className="bg-green-600 hover:bg-green-500 text-white px-3 py-2 rounded flex items-center gap-2 transition text-sm"
+              >
+                ✓ Save Changes
+              </button>
+              <button
+                onClick={() => window.location.reload()}
+                className="bg-slate-500 hover:bg-slate-400 text-white px-3 py-2 rounded flex items-center gap-2 transition text-sm"
+              >
+                <RotateCcw size={16} />
+                Discard
+              </button>
+              <div className="text-xs text-blue-300 px-2 py-1 bg-blue-900/30 rounded border border-blue-700">
+                ✏️ Click cells to edit. Type/Size/Runs/Remarks are editable.
+              </div>
+            </>
+          )}
+          
+          <div className="flex-1" />
+          
+          <button
+            onClick={handleExportExcel}
+            className="bg-green-600 hover:bg-green-500 text-white px-3 py-2 rounded flex items-center gap-2 transition text-sm"
+          >
+            <Download size={16} />
+            Excel
+          </button>
 
-        {/* Formula Viewer Box */}
+          <button
+            onClick={handleExportPDF}
+            className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded flex items-center gap-2 transition text-sm"
+          >
+            <FileText size={16} />
+            PDF
+          </button>
+          {/* column chooser */}
+          <div className="relative inline-block">
+            <button
+              onClick={() => setShowColumnsMenu(prev => !prev)}
+              className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded flex items-center gap-1 transition text-sm ml-2"
+            >
+              Columns
+            </button>
+            {showColumnsMenu && (
+              <div className="absolute right-0 mt-2 w-48 max-h-64 overflow-auto bg-slate-800 border border-slate-600 rounded shadow-lg z-50 p-2 text-xs">
+                {Object.keys(visibleColumns).map(label => (
+                  <label key={label} className="flex items-center mb-1">
+                    <input
+                      type="checkbox"
+                      checked={visibleColumns[label]}
+                      onChange={() => toggleColumn(label)}
+                      className="mr-2"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Formula Viewer Box - Full Width Rectangle */}
         {selectedCell && results[selectedCell.rowIdx] && (
-          <div className="bg-slate-700/80 border border-cyan-500 rounded px-4 py-3 flex-1 max-w-3xl min-w-[560px] max-h-72 overflow-auto">
+          <div className="bg-slate-700/80 border border-cyan-500 rounded px-4 py-3 w-full max-h-64 overflow-auto">
             {(() => {
               const formulaData = buildFormulaBreakdown(selectedCell.rowIdx, selectedCell.fieldKey);
               if (!formulaData) {
                 return (
-                  <div className="text-xs text-slate-300">
+                  <div className="text-sm text-slate-300">
                     <p className="font-semibold text-cyan-300">{selectedCell.fieldLabel}</p>
                     <p className="text-slate-400">No formula available for this cell</p>
                   </div>
                 );
               }
               return (
-                <div className="text-sm space-y-2 max-h-64 overflow-auto text-slate-200">
-                  <p className="font-semibold text-cyan-300">{formulaData.label}</p>
-                  <p className="text-yellow-300 bg-slate-800/50 p-1 rounded font-mono text-xs">{formulaData.formula}</p>
-                  {formulaData.values && formulaData.values.length > 0 && (
-                    <div className="bg-slate-800/30 p-1 rounded border border-slate-600">
-                      {formulaData.values.map((v: any, i: number) => (
-                        <div key={i} className="flex justify-between gap-2">
-                          <span className="text-slate-300">{v.label}:</span>
-                          <span className="text-green-300 font-mono">{v.value}</span>
-                        </div>
-                      ))}
+                <div className="text-sm space-y-2 text-slate-200">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-semibold text-cyan-300 text-base mb-2">{formulaData.label}</p>
+                      <p className="text-yellow-300 bg-slate-800/50 p-2 rounded font-mono text-sm border border-yellow-400/30 mb-2">{formulaData.formula}</p>
                     </div>
-                  )}
-                  {formulaData.calculation && (
-                    <div className="border-t border-slate-600 pt-1">
-                      <p className="text-slate-400">Calculation:</p>
-                      <p className="font-mono text-cyan-300 text-xs bg-slate-800/50 p-1 rounded break-words">{formulaData.calculation}</p>
-                    </div>
-                  )}
-                  <div className="border-t border-slate-600 pt-1 bg-slate-800/50 p-1 rounded">
-                    <p className="text-slate-300">Result:</p>
-                    <p className="text-green-300 font-bold text-sm">{formulaData.result}</p>
+                    <button
+                      onClick={() => setSelectedCell(null)}
+                      className="text-slate-400 hover:text-slate-300 text-lg ml-4 flex-shrink-0"
+                    >
+                      ✕
+                    </button>
                   </div>
-                  <button
-                    onClick={() => setSelectedCell(null)}
-                    className="text-xs text-slate-400 hover:text-slate-300 mt-1 w-full text-center"
-                  >
-                    ✕ Close
-                  </button>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    {formulaData.values && formulaData.values.length > 0 && (
+                      <div className="bg-slate-800/30 p-2 rounded border border-slate-600">
+                        <p className="font-semibold text-cyan-200 mb-2 text-xs">Input Values:</p>
+                        {formulaData.values.map((v: any, i: number) => (
+                          <div key={i} className="flex justify-between gap-3 text-xs">
+                            <span className="text-slate-300">{v.label}:</span>
+                            <span className="text-green-300 font-mono font-semibold">{v.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {formulaData.calculation && (
+                      <div className="bg-slate-800/30 p-2 rounded border border-slate-600">
+                        <p className="font-semibold text-cyan-200 mb-2 text-xs">Calculation:</p>
+                        <p className="font-mono text-cyan-300 text-xs break-words">{formulaData.calculation}</p>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="bg-slate-800/50 p-2 rounded border border-green-600/30 flex justify-between items-center">
+                    <span className="text-slate-300 font-semibold">Result:</span>
+                    <span className="text-green-300 font-bold text-lg">{formulaData.result}</span>
+                  </div>
                 </div>
               );
             })()}
           </div>
         )}
-        
-        <button
-          onClick={handleExportExcel}
-          className="bg-green-600 hover:bg-green-500 text-white px-3 py-2 rounded flex items-center gap-2 transition text-sm"
-        >
-          <Download size={16} />
-          Excel
-        </button>
+      </div>
 
-        <button
-          onClick={handleExportPDF}
-          className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded flex items-center gap-2 transition text-sm"
-        >
-          <FileText size={16} />
-          PDF
-        </button>
-        {/* column chooser */}
-        <div className="relative inline-block">
-          <button
-            onClick={() => setShowColumnsMenu(prev => !prev)}
-            className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded flex items-center gap-1 transition text-sm ml-2"
-          >
-            Columns
-          </button>
-          {showColumnsMenu && (
-            <div className="absolute right-0 mt-2 w-48 max-h-64 overflow-auto bg-slate-800 border border-slate-600 rounded shadow-lg z-50 p-2 text-xs">
-              {Object.keys(visibleColumns).map(label => (
-                <label key={label} className="flex items-center mb-1">
-                  <input
-                    type="checkbox"
-                    checked={visibleColumns[label]}
-                    onChange={() => toggleColumn(label)}
-                    className="mr-2"
-                  />
-                  {label}
-                </label>
-              ))}
-            </div>
-          )}
-        </div>
-        
-        <div className="text-sm text-slate-300">
-          <span className="font-semibold">{results.length}</span> cables |
-          <span className="text-green-400 ml-2">
-            {results.filter(r => r.status === 'APPROVED').length}
-          </span>
-          ✓
-        </div>
+      {/* Results Summary */}
+      <div className="text-sm text-slate-300">
+        <span className="font-semibold">{results.length}</span> cables |
+        <span className="text-green-400 ml-2">
+          {results.filter(r => r.status === 'APPROVED').length}
+        </span>
+        ✓
       </div>
 
       {/* Results Table - EXACT EXCEL FORMAT WITH FROM/TO */}
