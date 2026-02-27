@@ -26,6 +26,8 @@ export interface CableSizingInput {
   efficiency?: number;
   powerFactor?: number;
   cableLength: number;
+  // Optional override to force a selected conductor area (mm²)
+  forceSize?: number;
   
   // For fixed loads (transformers, fixed feeders): direct FLC from rated power (MVA) or current
   // Formula: I = D / (√3 × V) where D is in MVA or kW
@@ -244,6 +246,36 @@ export class CableSizingEngine_V2 {
             // Update selectedConductorArea to per-run size for downstream calculations
             result.selectedConductorArea = sizePerRun;
           }
+        }
+      }
+
+      // If the caller requested a forced size (user override from UI), apply it here
+      if (input.forceSize && Number.isFinite(input.forceSize) && input.forceSize > 0) {
+        const forced = Math.round(input.forceSize);
+        const forcedEntry = this.catalog[String(forced)];
+        if (forcedEntry) {
+          result.selectedConductorArea = forced;
+          // Recompute parallel runs for forced size
+          result.numberOfRuns = Math.max(1, Math.ceil(forced / 240));
+          result.sizePerRun = forced;
+          result.warnings.push(`User-forced size applied: ${forced}mm²`);
+          // Update catalog-based ratings and impedance
+          const method = input.installationMethod.toLowerCase() as 'air' | 'trench' | 'duct';
+          result.catalogRatingPerRun = forcedEntry[method] || forcedEntry.air || 0;
+          result.installedRatingPerRun = result.catalogRatingPerRun * result.deratingFactor;
+          result.installedRatingTotal = result.installedRatingPerRun * result.numberOfRuns;
+          result.cableResistance_90C_Ohm_km = forcedEntry.resistance_90C || forcedEntry.resistance || 0;
+          result.cableReactance_Ohm_km = forcedEntry.reactance || 0;
+          const vdropRunning = this.calculateVoltageDropRunning(result.fullLoadCurrent, forcedEntry);
+          result.voltageDropRunning_percent = vdropRunning.percent;
+          result.voltageDropRunning_volt = vdropRunning.voltage;
+          if (input.loadType === 'Motor' && result.startingCurrent) {
+            const vdropStarting = this.calculateVoltageDropStarting(result.startingCurrent, forcedEntry);
+            result.voltageDropStarting_percent = vdropStarting.percent;
+            result.voltageDropStarting_volt = vdropStarting.voltage;
+          }
+        } else {
+          result.warnings.push(`Forced size ${forced}mm² not found in catalog; ignored`);
         }
       }
 
@@ -496,7 +528,7 @@ export class CableSizingEngine_V2 {
       vdrop = flc * L_km * (R * cosphi + X * sinphi);
     }
 
-    const vdropPercent = vdrop / this.input.voltage;
+    const vdropPercent = (vdrop / this.input.voltage) * 100; // return percent in % units
     return { percent: vdropPercent, voltage: vdrop };
   }
 
@@ -514,7 +546,7 @@ export class CableSizingEngine_V2 {
       vdrop = iStarting * L_km * (R * cosphi + X * sinphi);
     }
 
-    const vdropPercent = vdrop / this.input.voltage;
+    const vdropPercent = (vdrop / this.input.voltage) * 100; // percent in % units
     return { percent: vdropPercent, voltage: vdrop };
   }
 

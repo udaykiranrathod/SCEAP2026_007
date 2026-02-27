@@ -43,6 +43,20 @@ describe('pathDiscoveryService utilities', () => {
     expect(f.length).toBe(100);
   });
 
+  it('normalizeFeeders records unit and phase information', () => {
+    const feeders = normalizeFeeders([
+      makeRow({
+        'Cable Number': 'C2',
+        'UNIT': 'kVA',
+        Phase: '1Ph'
+      })
+    ]);
+    expect(feeders).toHaveLength(1);
+    const f = feeders[0];
+    expect(f.unit).toBe('kVA');
+    expect(f.phase).toBe('1Ø');
+  });
+
   it('calculateSegmentVoltageDrop returns zero when missing values', () => {
     const seg = {} as CableSegment;
     expect(calculateSegmentVoltageDrop(seg, 10)).toBe(0);

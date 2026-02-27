@@ -35,43 +35,74 @@ export interface CablePath {
 }
 
 export interface CableSegment {
+  // ID & ROUTING
   serialNo: number;
   cableNumber: string;
   feederDescription: string;
   fromBus: string;
   toBus: string;
+
+  // LOAD DATA
+  equipmentLocation?: string;
+  bus?: string;
+  feederType?: string;
+  unit?: 'kW' | 'kVA';
+  ratedPower?: number; // Rated Power KW (for Excel compatibility)
+  ratedVoltageKV?: number; // Voltage in kV
+  ratedVoltage_V?: number; // Voltage in Volts (same as voltage field)
   voltage: number;
+  phase?: '1Ø' | '3Ø';
   loadKW: number;
+  powerFactor?: number;
+  efficiency?: number;
+  loadType?: 'Motor' | 'Heater' | 'Transformer' | 'Feeder' | 'Pump' | 'Fan' | 'Compressor';
+
+  // SHORT CIRCUIT
+  maxShortCircuitCurrent?: number; // kA
+  motorStartingCurrent?: number; // A
+  motorStartingPF?: number;
+  protectionClearingTime?: number; // seconds
+  scDuration?: number; // SC withstand duration
+
+  // CABLE DATA
   length: number;
-  deratingFactor: number;
+  numberOfCores?: '1C' | '2C' | '3C' | '3C+E' | '4C'; // used for cross-checking, not currently consumed
+  conductorMaterial?: 'Cu' | 'Al';
+  installationMethod?: string;
   resistance?: number;
   reactance?: number;
-  // NEW FIELDS FOR PROFESSIONAL CABLE SIZING
-  numberOfCores?: '1C' | '2C' | '3C' | '3C+E' | '4C'; // Conductor cores
-  conductorMaterial?: 'Cu' | 'Al'; // Copper or Aluminum
-  // Parallel run bookkeeping (multiple physical cables from same source)
-  parallelCount?: number;        // how many cables share this same fromBus
-  originalCables?: string[];     // list of cable numbers in the parallel group
-  phase?: '1Ø' | '3Ø'; // Single or Three Phase
-  loadType?: 'Motor' | 'Heater' | 'Transformer' | 'Feeder' | 'Pump' | 'Fan' | 'Compressor';
-  efficiency?: number; // 0.0-1.0, for motors typically 0.85-0.96
-  powerFactor?: number; // 0.7-1.0, for motors typically 0.75-0.92
-  startingMethod?: 'DOL' | 'StarDelta' | 'SoftStarter' | 'VFD'; // Motor starting method
-  insulation?: 'XLPE' | 'PVC'; // Cable insulation type
-  installationMethod?: string; // e.g., 'Air - Ladder tray (touching)'
   cableSpacing?: 'touching' | 'spaced_400mm' | 'spaced_600mm';
+
+  // CABLE LENGTH COMPONENTS (for granular tracking)
+  cableLengthBuilding?: number; // m
+  cableLengthToEquipment?: number; // m
+  cableLengthRiser?: number; // m
+  cableLengthDropping?: number; // m
+  cableLengthSpare?: number; // 10% margin
+
+  // DERATING
   ambientTemp?: number; // °C
-  soilThermalResistivity?: number; // K·m/W for buried cables
-  depthOfLaying?: number; // cm for buried cables
-  groupedLoadedCircuits?: number; // Number of other loaded circuits nearby
-  numberOfLoadedCircuits?: number; // Number of loaded circuits (for derating)
-  protectionType?: 'ACB' | 'MCCB' | 'MCB' | 'None'; // ISc check only for ACB
-  maxShortCircuitCurrent?: number; // kA, for ISc check
-  protectionClearingTime?: number; // seconds, for ISc calculation
-  breakerType?: string; // Alias for protectionType (display name)
-  // UI/editor fields
-  selectedSize?: string; // e.g. '1R X 11kV X 3C X 240 Sqmm'
+  soilThermalResistivity?: number; // K·m/W
+  depthOfLaying?: number; // cm
+  groundTemp?: number; // °C
+  numberOfLoadedCircuits?: number;
+  deratingFactor?: number;
+
+  // CAPACITY & PROTECTION
+  protectionType?: 'ACB' | 'MCCB' | 'MCB' | 'None';
+  breakerType?: string;
+  
+  // ADVANCED FIELDS
+  startingMethod?: 'DOL' | 'StarDelta' | 'SoftStarter' | 'VFD';
+  insulation?: 'XLPE' | 'PVC';
+
+  // UI/EDITOR FIELDS
+  forcedSize?: number; // User override for cable size
+  selectedSize?: string; // e.g., '1R X 11kV X 3C X 240 Sqmm'
+  parallelCount?: number; // For parallel cables
+  originalCables?: string[];
   remarks?: string;
+  status?: 'APPROVED' | 'WARNING' | 'FAILED';
 }
 
 export interface PathAnalysisResult {
@@ -217,20 +248,7 @@ export const normalizeFeeders = (rawFeeders: any[]): CableSegment[] => {
         return String(value || fallback).trim();
       };
 
-      // Parse numberOfCores - can be string like "3C+E" or number like 4
-      let numberOfCores: '1C' | '2C' | '3C' | '3C+E' | '4C' | undefined;
-      const ncValue = getColumnValue(
-        feeder,
-        'Number of Cores', 'numberOfCores', 'Core', 'Cores', 'core', 'Cable Type'
-      ) || '3C';
-      if (typeof ncValue === 'string') {
-        numberOfCores = ncValue as any;
-      } else if (typeof ncValue === 'number') {
-        const coreMap: Record<number, '1C' | '2C' | '3C' | '3C+E' | '4C'> = { 1: '1C', 2: '2C', 3: '3C', 4: '4C' };
-        numberOfCores = coreMap[ncValue] || '3C';
-      }
-      // Note: If ncValue not found in labeled columns, defaults to '3C'
-      // This is fallback behavior when core config comes from voltage-based default instead
+      // Note: numberOfCores will be extracted as part of the return object below
 
       // Get voltage for phase detection
       const voltageRaw = getColumnValue(feeder, 'Voltage (V)', 'Voltage', 'V (V)', 'V', 'voltage (v)', 'rated voltage', 'nominal voltage');
@@ -247,85 +265,150 @@ export const normalizeFeeders = (rawFeeders: any[]): CableSegment[] => {
           voltage = voltage * 1000; // Convert kV to V
         }
       }
-      
+
+      // Determine phase early so we can use it during loadKW conversion
+      const phaseRaw = getColumnValue(feeder, 'Phase', '3Phase / 1Phase', 'Phase', 'phase', '1Ph', '3Ph');
+      let phase: '1Ø' | '3Ø' = '3Ø';
+      if (phaseRaw && typeof phaseRaw === 'string') {
+        const p = phaseRaw.toLowerCase();
+        if (p.includes('1')) phase = '1Ø';
+        else if (p.includes('3')) phase = '3Ø';
+      } else {
+        // default based on voltage
+        phase = voltage >= 400 ? '3Ø' : '1Ø';
+      }
+
       // DEBUG: Log voltage extraction
       const cableNum = getString(getColumnValue(feeder, 'cableNumber', 'Cable Number', 'Cable No', 'Cable', 'Feeder', 'cable number', 'cable no', 'feeder id'), '');
       if (!voltageRaw) {
         console.log(`[NORMALIZEFEEDERS] Cable ${cableNum}: voltageRaw=undefined, using default 415`);
       } else {
-        console.log(`[NORMALIZEFEEDERS] Cable ${cableNum}: voltageRaw=${voltageRaw}, converted to voltage=${voltage}V`);
+        console.log(`[NORMALIZEFEEDERS] Cable ${cableNum}: voltageRaw=${voltageRaw}, converted to voltage=${voltage}V, phase=${phase}`);
       }
 
       return {
-        serialNo: getNumber(getColumnValue(feeder, 'serialNo', 'Serial No', 'S.No', 'SNo', 'serial no', 'index', 'no'), 0),
-        cableNumber: getString(getColumnValue(feeder, 'cableNumber', 'Cable Number', 'Cable No', 'Cable', 'Feeder', 'cable number', 'cable no', 'feeder id'), ''),
+        serialNo: getNumber(getColumnValue(feeder, 'serialNo', 'Serial No', 'S.No', 'SL No', 'SNo', 'serial no', 'index', 'no'), 0),
+        cableNumber: getString(getColumnValue(feeder, 'cableNumber', 'Cable Number', 'Cable No', 'Tag No', 'Cable', 'Feeder', 'cable number', 'cable no', 'feeder id'), ''),
         feederDescription: getString(
           getColumnValue(feeder, 'feederDescription', 'Feeder Description', 'Description', 'Name', 'feeder description', 'desc'),
           ''
         ),
         fromBus: getString(getColumnValue(feeder, 'fromBus', 'From Bus', 'From', 'Source', 'Load', 'Equipment', 'from bus', 'from', 'source'), ''),
         toBus: getString(getColumnValue(feeder, 'toBus', 'To Bus', 'To', 'Destination', 'Panel', 'to bus', 'to', 'destination'), ''),
+
+        // LOAD DATA - NEW FIELDS
+        equipmentLocation: getString(getColumnValue(feeder, 'equipmentLocation', 'Equipment Location', 'Location'), ''),
+        bus: getString(getColumnValue(feeder, 'bus', 'Bus', 'bus identifier'), ''),
+        feederType: getString(getColumnValue(feeder, 'feederType', 'Type of feeder', 'Feeder Type'), ''),
+        ratedPower: getNumber(getColumnValue(feeder, 'ratedPower', 'Rated power', 'Rated Power', 'Power', 'Load'), 0),
+        ratedVoltageKV: voltage / 1000,
+        ratedVoltage_V: voltage,
         voltage,
-        // Determine loadKW from direct entry or rated power fields
-        loadKW: (() => {
-          const direct = getNumber(getColumnValue(feeder, 'loadKW', 'Load (kW)', 'Load KW', 'Load', 'Power', 'kW', 'load (kw)', 'power (kw)'), NaN);
-          if (!isNaN(direct) && direct > 0) return direct;
-          const kw = getNumber(getColumnValue(feeder, 'ratedPowerKW', 'Rated Power (kW)', 'kW'), NaN);
-          if (!isNaN(kw) && kw > 0) return kw;
-          const kva = getNumber(getColumnValue(feeder, 'ratedPowerKVA', 'Rated Power (kVA)', 'kVA'), NaN);
-          if (!isNaN(kva) && kva > 0) {
-            const pf = getNumber(getColumnValue(feeder, 'powerFactor', 'Power Factor', 'PF'), 0.85);
-            const eff = getNumber(getColumnValue(feeder, 'efficiency', 'Efficiency (%)', 'Efficiency', 'Eff'), 0.92);
-            const vval = voltage || 415;
-            return (kva * 1000 * pf * eff) / (Math.sqrt(3) * vval);
+        phase: (getString(getColumnValue(feeder, 'phase', 'Phase', '3Phase / 1Phase', 'phase'), '') as '1Ø' | '3Ø') || (voltage >= 400 ? '3Ø' : '1Ø'),
+        unit: (() => {
+          const unitRaw = getColumnValue(feeder, 'UNIT', 'UNIT (kW / kVa)', 'Unit (kW/kVA)', 'unit', 'Power Unit');
+          let u: 'kW' | 'kVA' = 'kW';
+          if (unitRaw && typeof unitRaw === 'string' && unitRaw.toLowerCase().includes('kva')) {
+            u = 'kVA';
           }
+          return u;
+        })(),
+
+        loadKW: (() => {
+          const unit: 'kW' | 'kVA' = (() => {
+            const unitRaw = getColumnValue(feeder, 'UNIT', 'UNIT (kW / kVa)', 'Unit (kW/kVA)', 'unit', 'Power Unit');
+            let u: 'kW' | 'kVA' = 'kW';
+            if (unitRaw && typeof unitRaw === 'string' && unitRaw.toLowerCase().includes('kva')) {
+              u = 'kVA';
+            }
+            return u;
+          })();
+
+          const direct = getNumber(getColumnValue(feeder, 'loadKW', 'Load (kW)', 'Load KW', 'Rated power', 'Load', 'Power', 'kW', 'load (kw)', 'power (kw)'), NaN);
+          if (!isNaN(direct) && direct > 0) return direct;
+
+          if (unit === 'kW') {
+            const kw = getNumber(getColumnValue(feeder, 'ratedPowerKW', 'Rated Power (kW)', 'kW', 'Rated power'), NaN);
+            if (!isNaN(kw) && kw > 0) return kw;
+          }
+
+          const kva = getNumber(getColumnValue(feeder, 'ratedPowerKVA', 'Rated Power (kVA)', 'kVA', 'Rated power'), NaN);
+          if (!isNaN(kva) && kva > 0) {
+            const pf = getNumber(getColumnValue(feeder, 'powerFactor', 'Power Factor', 'PF', 'Power factor'), 0.85);
+            const eff = getNumber(getColumnValue(feeder, 'efficiency', 'Efficiency', 'Efficiency (%)', 'Eff'), 0.92);
+            const vval = voltage || 415;
+            const p_kw = kva * pf * eff;
+            if (phase === '3Ø') {
+              return (p_kw * 1000) / (Math.sqrt(3) * vval);
+            } else {
+              return (p_kw * 1000) / vval;
+            }
+          }
+
           return 0;
         })(),
-        length: getNumber(getColumnValue(feeder, 'length', 'Length (m)', 'Length', 'L', 'Distance', 'length (m)', 'cable length'), 0),
-        deratingFactor: getNumber(
-          getColumnValue(feeder, 'deratingFactor', 'Derating Factor', 'Derating', 'K', 'derating factor', 'derating k'),
-          0.87
-        ),
-        resistance: getNumber(getColumnValue(feeder, 'resistance', 'Resistance', 'R', 'resistance'), 0),
-        reactance: getNumber(getColumnValue(feeder, 'reactance', 'Reactance', 'X', 'reactance'), 0),
-        numberOfCores,
-        // conductorMaterial removed from feeder list; material chosen later
-        conductorMaterial: 'Cu',
-        phase: (getString(getColumnValue(feeder, 'phase', 'Phase', 'phase'), '') as '1Ø' | '3Ø') || (voltage >= 400 ? '3Ø' : '1Ø'),
-        loadType: (getString(getColumnValue(feeder, 'loadType', 'Load Type', 'Type', 'load type', 'type'), 'Motor')) as any,
-        // Handle percent-formatted efficiency and power factor (e.g., 92 for 92%)
-        efficiency: (() => {
-          const v = getNumber(getColumnValue(feeder, 'efficiency', 'Efficiency', 'Efficiency (%)', 'Eff', 'efficiency', 'eff'), 0.92);
-          return v > 1 ? v / 100 : v;
-        })(),
-        powerFactor: (() => {
-          const v = getNumber(getColumnValue(feeder, 'powerFactor', 'Power Factor', 'PF', 'power factor', 'pf'), 0.85);
-          return v > 1 ? v / 100 : v;
-        })(),
-        startingMethod: (getString(getColumnValue(feeder, 'startingMethod', 'Starting Method', 'Starting', 'starting method'), 'DOL')) as any,
-        insulation: (getString(getColumnValue(feeder, 'insulation', 'Insulation', 'insulation'), 'XLPE')) as any,
-        installationMethod: getString(getColumnValue(feeder, 'installationMethod', 'Installation Method', 'Installation', 'installation method', 'method'), 'Air'),
-        cableSpacing: (getString(getColumnValue(feeder, 'cableSpacing', 'Cable Spacing', 'Spacing', 'cable spacing'), 'touching')) as any,
-        ambientTemp: getNumber(getColumnValue(feeder, 'ambientTemp', 'Ambient Temp (°C)', 'Ambient Temp', 'Temp', 'ambient temp', 'temperature'), 40),
-        soilThermalResistivity: getNumber(getColumnValue(feeder, 'soilThermalResistivity', 'Soil Thermal Resistivity (K·m/W)', 'Soil Resistivity', 'soil resistivity'), 1.2),
-        depthOfLaying: getNumber(getColumnValue(feeder, 'depthOfLaying', 'Depth of Laying (cm)', 'Depth', 'depth'), 60),
-        numberOfLoadedCircuits: getNumber(getColumnValue(feeder, 'numberOfLoadedCircuits', 'Grouped Loaded Circuits', 'Circuits', 'grouped circuits'), 1),
-        // If no SC value provided in sheet, leave undefined so engine skips SC check
+
+        // SHORT CIRCUIT & PROTECTION
         maxShortCircuitCurrent: (() => {
-          const raw = getColumnValue(feeder, 'maxShortCircuitCurrent', 'Short Circuit Current (kA)', 'ISc', 'Isc', 'short circuit', 'sc current', 'trip time (ms)');
+          const raw = getColumnValue(feeder, 'maxShortCircuitCurrent', 'Short circuit current of switchboard', 'Short Circuit Current (kA)', 'Short circuit current (kA)', 'ISc', 'Isc', 'short circuit', 'sc current');
           if (raw === undefined || raw === null || raw === '') return undefined;
           const n = getNumber(raw);
           return Number.isFinite(n) ? n : undefined;
         })(),
-        // NEW: Protection type determines if ISc check is applied (ISc only for ACB)
-        protectionType: (getString(getColumnValue(feeder, 'protectionType', 'Breaker Type', 'Protection Type', 'Breaker', 'breaker type', 'protection'), 'None')) as 'ACB' | 'MCCB' | 'MCB' | 'None',
-        // Alias for protectionType (display name for Results table)
-        breakerType: getString(getColumnValue(feeder, 'breakerType', 'Protection Type', 'Breaker Type', 'Breaker', 'breaker type', 'protection'), 'MCCB'),
-        // Additional optional fields
-        motorStartingCurrent: getNumber(getColumnValue(feeder, 'motorStartingCurrent', 'Motor Starting Current', 'Starting Current'), 0),
-        motorStartingPF: getNumber(getColumnValue(feeder, 'motorStartingPF', 'Motor Starting PF', 'Starting PF'), 0),
-        scDuration: getNumber(getColumnValue(feeder, 'scDuration', 'SC Withstand Duration', 'Duration (sec)'), 0),
-        groundTemp: getNumber(getColumnValue(feeder, 'groundTemp', 'Ground Temp', 'Ground Temperature', 'Soil Temp'), 0)
+        motorStartingCurrent: getNumber(getColumnValue(feeder, 'motorStartingCurrent', 'Motor starting current', 'Motor Starting Current', 'Starting Current'), 0),
+        motorStartingPF: getNumber(getColumnValue(feeder, 'motorStartingPF', 'Motor starting power factor', 'Motor Starting PF', 'Starting PF'), 0.2),
+        scDuration: getNumber(getColumnValue(feeder, 'scDuration', 'Short circuit current withstand duration', 'SC withstand duration', 'SC Withstand Duration', 'Duration (sec)'), 0.265),
+        protectionType: (getString(getColumnValue(feeder, 'protectionType', 'Breaker Type', 'Protection Type', 'Breaker', 'breaker type', 'protection'), 'MCCB')) as 'ACB' | 'MCCB' | 'MCB' | 'None',
+        breakerType: getString(getColumnValue(feeder, 'breakerType', 'Breaker Type', 'Protection Type', 'Breaker', 'breaker type', 'protection'), 'MCCB'),
+
+        // CABLE DATA
+        length: getNumber(getColumnValue(feeder, 'length', 'Cable length for each run', 'Length (m)', 'Length', 'L', 'Distance', 'length (m)', 'cable length'), 0),
+        numberOfCores: (() => {
+          let numberOfCores: '1C' | '2C' | '3C' | '3C+E' | '4C' | undefined;
+          const ncValue = getColumnValue(feeder, 'numberOfCores', 'No. of Cores', 'Number of Cores', 'Core', 'Cores', 'core', 'Cable Type') || '3C';
+          if (typeof ncValue === 'string') {
+            numberOfCores = ncValue as any;
+          } else if (typeof ncValue === 'number') {
+            const coreMap: Record<number, '1C' | '2C' | '3C' | '3C+E' | '4C'> = { 1: '1C', 2: '2C', 3: '3C', 4: '4C' };
+            numberOfCores = coreMap[ncValue] || '3C';
+          }
+          return numberOfCores;
+        })(),
+        conductorMaterial: 'Al',
+        installationMethod: getString(getColumnValue(feeder, 'installationMethod', 'Installation', 'Installation Method', 'method'), 'Air'),
+        resistance: getNumber(getColumnValue(feeder, 'resistance', 'Resistance', 'R', 'resistance'), 0),
+        reactance: getNumber(getColumnValue(feeder, 'reactance', 'Reactance', 'X', 'reactance'), 0),
+        cableSpacing: (getString(getColumnValue(feeder, 'cableSpacing', 'Cable Spacing', 'Spacing', 'cable spacing'), 'touching')) as 'touching' | 'spaced_400mm' | 'spaced_600mm',
+
+        // CABLE LENGTH COMPONENTS
+        cableLengthBuilding: getNumber(getColumnValue(feeder, 'cableLengthBuilding', 'Cable Length with in Electrical Building', 'Cable Length Building', 'Cable Length Building (m)'), 0),
+        cableLengthToEquipment: getNumber(getColumnValue(feeder, 'cableLengthToEquipment', 'Cable Length from Electrical Building to Equipment', 'Cable Length to Equipment', 'Cable Length to Equipment (m)'), 0),
+        cableLengthRiser: getNumber(getColumnValue(feeder, 'cableLengthRiser', 'Cable length Riser & Dropper', 'Cable Length Riser', 'Cable Length Riser (m)'), 0),
+        cableLengthDropping: getNumber(getColumnValue(feeder, 'cableLengthDropping', 'Cable length both side dropping & Termination', 'Cable Length Dropping', 'Cable Length Dropping (m)'), 0),
+        cableLengthSpare: getNumber(getColumnValue(feeder, 'cableLengthSpare', 'Spare 10%', 'Spare'), 0),
+
+        // DERATING
+        ambientTemp: getNumber(getColumnValue(feeder, 'ambientTemp', 'Ambient Temp (°C)', 'Ambient temperature (K1)', 'Ambient Temp', 'Temp', 'ambient temp', 'temperature'), 40),
+        groundTemp: getNumber(getColumnValue(feeder, 'groundTemp', 'Ground Temp (°C)', 'Ground temperature', 'Ground Temp', 'Soil Temp'), 20),
+        depthOfLaying: getNumber(getColumnValue(feeder, 'depthOfLaying', 'Depth of Laying (cm)', 'Depth', 'depth'), 100),
+        soilThermalResistivity: getNumber(getColumnValue(feeder, 'soilThermalResistivity', 'Thermal Resistivity (K·m/W)', 'Soil Thermal Resistivity (K·m/W)', 'Soil Resistivity', 'soil resistivity'), 1.5),
+        numberOfLoadedCircuits: getNumber(getColumnValue(feeder, 'numberOfLoadedCircuits', 'Grouped Loaded Circuits', 'Circuits', 'grouped circuits'), 1),
+        deratingFactor: getNumber(getColumnValue(feeder, 'deratingFactor', 'Derating Factor', 'K', 'derating factor', 'derating k'), 0),
+
+        // OPTIONAL UI FIELDS
+        powerFactor: (() => {
+          const v = getNumber(getColumnValue(feeder, 'powerFactor', 'Power Factor', 'Power factor', 'PF', 'power factor', 'pf'), 0.85);
+          return v > 1 ? v / 100 : v;
+        })(),
+        efficiency: (() => {
+          const v = getNumber(getColumnValue(feeder, 'efficiency', 'Efficiency', 'Efficiency (%)', 'Eff', 'efficiency', 'eff'), 0.95);
+          return v > 1 ? v / 100 : v;
+        })(),
+        startingMethod: (getString(getColumnValue(feeder, 'startingMethod', 'Starting Method', 'Starting', 'starting method'), 'DOL')) as 'DOL' | 'StarDelta' | 'SoftStarter' | 'VFD',
+        insulation: (getString(getColumnValue(feeder, 'insulation', 'Insulation', 'insulation'), 'XLPE')) as 'XLPE' | 'PVC',
+        loadType: (getString(getColumnValue(feeder, 'loadType', 'Load Type', 'Type of feeder', 'Type', 'load type', 'type'), 'Motor')) as any,
+        selectedSize: getString(getColumnValue(feeder, 'selectedSize', 'Selected Cable Size', 'Selected cable size'), ''),
+        remarks: getString(getColumnValue(feeder, 'remarks', 'Remarks', 'remarks'), '')
       };
     });
 };
@@ -338,24 +421,24 @@ export const normalizeFeeders = (rawFeeders: any[]): CableSegment[] => {
 export const calculateSegmentVoltageDrop = (
   segment: CableSegment,
   cableResistance: number
-): number => {
-  if (!segment.loadKW || !segment.length || !cableResistance) return 0;
+): { voltageDrop: number; current: number; percent: number } => {
+  // If missing data, return zeros
+  if (!segment.loadKW || !segment.length || !cableResistance || !segment.voltage) {
+    return { voltageDrop: 0, current: 0, percent: 0 };
+  }
 
-  // Calculate current: I = (P × 1000) / (√3 × V × PF × Efficiency)
-  // Assuming PF = 0.85, Efficiency = 0.95
-  const pf = 0.85;
-  const efficiency = 0.95;
-  const sqrt3 = 1.732;
+  // Calculate running current: I = (P × 1000) / (√3 × V × PF × Efficiency)
+  const pf = segment.powerFactor ?? 0.85;
+  const efficiency = segment.efficiency ?? 0.95;
+  const sqrt3 = Math.sqrt(3);
 
   const current = (segment.loadKW * 1000) / (sqrt3 * segment.voltage * pf * efficiency);
 
-  // Apply derating factor
-  const derated_current = current / segment.deratingFactor;
+  // V-drop uses actual running current (not derated capacity)
+  const vdrop = (sqrt3 * current * cableResistance * segment.length) / 1000;
 
-  // V-drop = (√3 × I × R × L) / 1000
-  const vdrop = (sqrt3 * derated_current * cableResistance * segment.length) / 1000;
-
-  return vdrop;
+  const percent = segment.voltage > 0 ? (vdrop / segment.voltage) * 100 : 0;
+  return { voltageDrop: vdrop, current, percent };
 };
 
 /**
@@ -445,23 +528,18 @@ export const discoverPathsToTransformer = (cables: CableSegment[]): CablePath[] 
       let totalVdrop = 0;
       pathCables.forEach(seg => {
         const r = seg.resistance || 0.1;
-        const drop = calculateSegmentVoltageDrop(seg, r);
+        const segDrop = calculateSegmentVoltageDrop(seg, r);
+        const drop = segDrop.voltageDrop;
         totalVdrop += drop;
-        // reconstruct current and derated current for formula display
-        const pf = seg.powerFactor || 0.85;
-        const efficiency = seg.efficiency || 0.95;
-        const sqrt3 = 1.732;
-        const current = seg.loadKW ? (seg.loadKW * 1000) / (sqrt3 * seg.voltage * pf * efficiency) : 0;
-        const derated_current = current / (seg.deratingFactor || 1);
-        const formula =
-          `Vdrop = (√3 × ${derated_current.toFixed(2)}A × ${r.toFixed(3)}Ω/km × ${seg.length}m) / 1000 = ${drop.toFixed(3)}V`;
+        const formula = `Vdrop = (√3 × ${segDrop.current.toFixed(2)}A × ${r.toFixed(3)}Ω/km × ${seg.length}m) / 1000 = ${drop.toFixed(3)}V (${segDrop.percent.toFixed(2)}%)`;
         dropDetails.push({
           cableNumber: seg.cableNumber,
           length: seg.length,
           resistance: r,
-          current,
-          deratedCurrent: derated_current,
+          current: segDrop.current,
+          deratedCurrent: (segDrop.current / (seg.deratingFactor || 1)),
           drop,
+          percent: segDrop.percent,
           formula
         });
       });
@@ -612,29 +690,28 @@ export const analyzeAllPaths = (cables: CableSegment[], catalogueData?: any): Pa
         cableLength: seg.length || 0,
         ambientTemp: seg.ambientTemp || 40,
         numberOfLoadedCircuits: seg.numberOfLoadedCircuits || 1,
+        // allow UI to force a selection
+        forceSize: (seg as any).forcedSize || undefined,
         // optional fields defaulted inside engine
       };
 
       const rres = engine.sizeCable(input);
       const resistance = rres.cableResistance_90C_Ohm_km || 0;
-      const current = rres.fullLoadCurrent || 0;
-      const derating = rres.deratingFactor || 1;
-      const deratedCurrent = rres.effectiveCurrentAtRun || current / derating;
       // drop formula same as earlier helper but using engine data
-      const drop = resistance && seg.length
-        ? (1.732 * deratedCurrent * resistance * seg.length) / 1000
-        : 0;
+      // Use engine-calculated drop values when available (engine returns volt and percent)
+      const drop = (rres && rres.voltageDropRunning_volt) ? rres.voltageDropRunning_volt : (resistance && seg.length ? (1.732 * (rres.fullLoadCurrent || 0) * resistance * seg.length) / 1000 : 0);
+      const percent = rres && rres.voltageDropRunning_percent ? rres.voltageDropRunning_percent : (seg.voltage > 0 ? (drop / seg.voltage) * 100 : 0);
 
-      const formula =
-        `Vdrop = (√3 × ${deratedCurrent.toFixed(2)}A × ${resistance.toFixed(3)}Ω/km × ${seg.length}m) / 1000 = ${drop.toFixed(3)}V`;
+      const formula = `Vdrop = (√3 × ${(rres.fullLoadCurrent || 0).toFixed(2)}A × ${resistance.toFixed(3)}Ω/km × ${seg.length}m) / 1000 = ${drop.toFixed(3)}V (${percent.toFixed(2)}%)`;
 
       dropDetails.push({
         cableNumber: seg.cableNumber,
         length: seg.length,
         resistance,
-        current,
-        deratedCurrent,
+        current: rres.fullLoadCurrent || 0,
+        deratedCurrent: rres.effectiveCurrentAtRun || 0,
         drop,
+        percent,
         formula,
         size: rres.selectedConductorArea || 0,
         numberOfRuns: rres.numberOfRuns,
